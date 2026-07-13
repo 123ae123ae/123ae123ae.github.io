@@ -2,28 +2,783 @@ import { useEffect, useMemo, useState } from "react";
 import * as Dialog from "@radix-ui/react-dialog";
 import { motion, AnimatePresence } from "motion/react";
 import { createClient } from "@supabase/supabase-js";
-import { Activity, AlertTriangle, Baby, CalendarDays, Camera, Check, ChevronRight, ClipboardList, Library, Plus, ShieldCheck, Sparkles, Sprout, X } from "lucide-react";
+import {
+  Activity, AlertTriangle, Baby, CalendarDays, Camera, Check, ChevronLeft, ChevronRight,
+  ClipboardList, Library, Plus, ShieldCheck, Sparkles, Sprout, Trash2, X,
+} from "lucide-react";
 
-const supabase=createClient("https://vqxzrydqnlpxyjafjdoh.supabase.co","sb_publishable_Pn-dEaqu0oWYJ8eK8OgUAg_PPORfQFF");
-const demoMeals=[{id:"demo-1",food:"苹果泥",amount_grams:30,eaten_at:"2026-07-13T09:20:00+02:00",reaction:"很喜欢",note:"无异常",asset:"/assets/apple-puree.png"},{id:"demo-2",food:"婴儿米糊",amount_grams:45,eaten_at:"2026-07-13T12:10:00+02:00",reaction:"愿意尝试",note:"无异常",asset:"/assets/rice-cereal.png"}];
-const foodAssets={苹果:"/assets/apple-puree.png",米糊:"/assets/rice-cereal.png",南瓜:"/assets/pumpkin.png"},pendingKey="baby-meals-pending-v2",cacheKey="baby-meals-cache-v2";
-const assetFor=food=>Object.entries(foodAssets).find(([name])=>food.includes(name))?.[1]||"/assets/rice-cereal.png";
-const readLocal=(key,fallback=[])=>{try{return JSON.parse(localStorage.getItem(key))||fallback}catch{return fallback}};
-const avatarKey="elnaz-avatar-local-v1";
-const prepareAvatar=file=>new Promise((resolve,reject)=>{const img=new Image(),reader=new FileReader();reader.onerror=reject;reader.onload=()=>{img.onload=()=>{const size=512,canvas=document.createElement("canvas");canvas.width=size;canvas.height=size;const ctx=canvas.getContext("2d"),side=Math.min(img.width,img.height),sx=(img.width-side)/2,sy=(img.height-side)/2;ctx.drawImage(img,sx,sy,side,side,0,0,size,size);canvas.toBlob(blob=>blob?resolve({blob,dataUrl:canvas.toDataURL("image/webp",.84)}):reject(new Error("图片处理失败")),"image/webp",.84)};img.src=reader.result};reader.readAsDataURL(file)});
+const supabase = createClient("https://vqxzrydqnlpxyjafjdoh.supabase.co", "sb_publishable_Pn-dEaqu0oWYJ8eK8OgUAg_PPORfQFF");
 
-function Header({online,onCalendar}){const[photo,setPhoto]=useState(()=>localStorage.getItem(avatarKey)||"/assets/baby-avatar.png"),[status,setStatus]=useState("");useEffect(()=>{(async()=>{if(!navigator.onLine)return;const{data:{user}}=await supabase.auth.getUser();if(!user)return;const{data:profile}=await supabase.from("baby_profiles").select("avatar_path").eq("user_id",user.id).maybeSingle();if(profile?.avatar_path){const{data}=await supabase.storage.from("baby-avatars").download(profile.avatar_path);if(data)setPhoto(URL.createObjectURL(data))}})()},[]);const change=async event=>{const file=event.target.files?.[0];if(!file)return;try{const{blob,dataUrl}=await prepareAvatar(file);setPhoto(dataUrl);localStorage.setItem(avatarKey,dataUrl);if(!navigator.onLine){setStatus("离线已保存");return}const{data:{user}}=await supabase.auth.getUser();if(!user){setStatus("登录后同步");return}const path=`${user.id}/elnaz-avatar.webp`;const{error}=await supabase.storage.from("baby-avatars").upload(path,blob,{contentType:"image/webp",upsert:true});if(error)throw error;await supabase.from("baby_profiles").upsert({user_id:user.id,baby_name:"Elnaz",avatar_path:path,updated_at:new Date().toISOString()});setStatus("头像已同步")}catch{setStatus("保存失败")}};return <header className="baby-header"><label className="avatar-editor" aria-label="更换 Elnaz 的头像"><img className="baby-avatar" src={photo} alt="Elnaz 的头像"/><span><Camera size={13}/></span><input type="file" accept="image/jpeg,image/png,image/webp" onChange={change}/></label><div className="baby-identity"><div><strong>Elnaz</strong><span>5个月</span></div><p>2026-07-13 · 星期一</p></div><button className="calendar-button" onClick={onCalendar} aria-label="查看日历"><CalendarDays size={20}/></button><div className="family-sync" aria-label={online?"爸妈已同步":"离线记录中"}><span><Baby size={16}/></span><i/><span className="parent-two"><Baby size={16}/></span><small>{status||(online?"爸妈已同步":"离线记录中")}</small></div></header>}
-function HealthStrip(){return <section className="health-block"><h2>身体反应 / 过敏状态</h2><div className="health-strip">{[[ShieldCheck,"无异常"],[Sparkles,"皮肤正常"],[Activity,"消化正常"]].map(([Icon,label])=><div key={label}><Icon/><span>{label}</span></div>)}</div></section>}
-function MealTimeline({meals}){return <section className="meal-section"><div className="section-title"><h2>今日记录</h2><button>按时间 <ChevronRight size={16}/></button></div><div className="timeline">{meals.map((meal,index)=><motion.article className="meal-row" key={meal.id} initial={{opacity:0,y:8}} animate={{opacity:1,y:0}} transition={{delay:index*.08}}><time>{new Date(meal.eaten_at).toLocaleTimeString("zh-CN",{hour:"2-digit",minute:"2-digit",hour12:false})}</time><span className="timeline-dot"/><img src={meal.asset||assetFor(meal.food)} alt=""/><div className="meal-copy"><h3>{meal.food}</h3><p><b>{meal.amount_grams}克</b><span>{meal.reaction}</span></p></div><div className="meal-safe"><Check size={15}/><span>{meal.note||"无异常"}</span></div><ChevronRight className="meal-chevron" size={20}/></motion.article>)}</div><button className="view-all">查看全部记录 <ChevronRight size={17}/></button></section>}
+/* ---------- 存储 ---------- */
+const mealsKey = "baby-meals-all-v3";
+const pendingKey = "baby-meals-pending-v2";
+const legacyCacheKey = "baby-meals-cache-v2";
+const planKey = "baby-plan-v1";
+const avatarKey = "elnaz-avatar-local-v1";
+const birthKey = "elnaz-birthdate-v1";
 
-function AddMealDialog({open,onOpenChange,onSave}){const[food,setFood]=useState("苹果泥"),[amount,setAmount]=useState(30),[time,setTime]=useState("14:30"),[reaction,setReaction]=useState("很喜欢"),[body,setBody]=useState("无异常");return <Dialog.Root open={open} onOpenChange={onOpenChange}><Dialog.Portal><Dialog.Overlay className="dialog-overlay"/><Dialog.Content className="meal-sheet"><div className="sheet-grabber"/><div className="sheet-head"><div><Dialog.Title>记录一餐</Dialog.Title><Dialog.Description>几步就能记好，常用选项已为你准备。</Dialog.Description></div><Dialog.Close className="icon-button"><X size={20}/></Dialog.Close></div><form onSubmit={e=>{e.preventDefault();onSave({food,amount_grams:Number(amount),time,reaction,note:body})}}><label>吃了什么<select value={food} onChange={e=>setFood(e.target.value)}><option>苹果泥</option><option>婴儿米糊</option><option>南瓜泥</option><option>胡萝卜泥</option></select></label><div className="form-grid"><label>分量（克）<input type="number" min="1" max="1000" value={amount} onChange={e=>setAmount(e.target.value)}/></label><label>时间<input type="time" value={time} onChange={e=>setTime(e.target.value)}/></label></div><Choices title="喜欢程度" value={reaction} setValue={setReaction} items={["很喜欢","愿意尝试","一般般","不太喜欢"]}/><Choices title="身体反应" value={body} setValue={setBody} items={["无异常","皮肤反应","消化不适","需要观察"]}/><button className="save-button" type="submit"><Check size={19}/>保存这餐</button></form></Dialog.Content></Dialog.Portal></Dialog.Root>}
-function Choices({title,value,setValue,items}){return <fieldset><legend>{title}</legend><div className="choice-row">{items.map(x=><button type="button" className={value===x?"selected":""} onClick={()=>setValue(x)} key={x}>{x}</button>)}</div></fieldset>}
-function AuthDialog({open,onSignedIn}){const[email,setEmail]=useState(""),[password,setPassword]=useState(""),[message,setMessage]=useState("");const login=async e=>{e.preventDefault();setMessage("正在登录…");const{data,error}=await supabase.auth.signInWithPassword({email,password});if(error)setMessage("登录失败，请检查邮箱和密码");else{setMessage("");onSignedIn(data.user)}};const signup=async()=>{setMessage("正在创建家庭账号…");const{error}=await supabase.auth.signUp({email,password});setMessage(error?error.message:"请打开邮箱中的确认链接，然后回来登录。");};return <Dialog.Root open={open}><Dialog.Portal><Dialog.Overlay className="dialog-overlay"/><Dialog.Content className="auth-card"><img src="/assets/baby-avatar.png" alt=""/><Dialog.Title>欢迎来到宝贝食光</Dialog.Title><Dialog.Description>登录后，你和家人可以随时同步 Elnaz 的辅食记录。</Dialog.Description><form onSubmit={login}><label>邮箱<input type="email" value={email} onChange={e=>setEmail(e.target.value)} required/></label><label>密码<input type="password" minLength="6" value={password} onChange={e=>setPassword(e.target.value)} required/></label><button className="save-button" type="submit">登录</button><button className="signup-link" type="button" onClick={signup}>第一次使用？创建家庭账号</button><p className="auth-message">{message}</p></form></Dialog.Content></Dialog.Portal></Dialog.Root>}
+const readLocal = (key, fallback) => {
+  try { return JSON.parse(localStorage.getItem(key)) ?? fallback; } catch { return fallback; }
+};
+const writeLocal = (key, value) => localStorage.setItem(key, JSON.stringify(value));
 
-function App(){const[meals,setMeals]=useState(()=>readLocal(cacheKey,demoMeals)),[sheetOpen,setSheetOpen]=useState(false),[authOpen,setAuthOpen]=useState(false),[online,setOnline]=useState(navigator.onLine),[notice,setNotice]=useState(""),[avatar,setAvatar]=useState(()=>localStorage.getItem(avatarKey)||"/assets/baby-avatar.png");const total=useMemo(()=>meals.reduce((sum,m)=>sum+Number(m.amount_grams),0),[meals]);
-const sync=async()=>{if(!navigator.onLine)return;const{data:{user}}=await supabase.auth.getUser();if(!user)return;const{data:profile}=await supabase.from("baby_profiles").select("avatar_path").eq("user_id",user.id).maybeSingle();if(profile?.avatar_path){const{data:blob}=await supabase.storage.from("baby-avatars").download(profile.avatar_path);if(blob)setAvatar(URL.createObjectURL(blob))}const pending=readLocal(pendingKey);if(pending.length){const rows=pending.map(({localId,time,asset,id,...m})=>({...m,user_id:user.id,eaten_at:new Date(`2026-07-13T${time}:00+02:00`).toISOString(),emoji:"🥄"}));const{error}=await supabase.from("meals").insert(rows);if(!error)localStorage.removeItem(pendingKey)}const start=new Date("2026-07-13T00:00:00+02:00").toISOString();const{data}=await supabase.from("meals").select("*").gte("eaten_at",start).order("eaten_at");if(data?.length){const next=data.map(m=>({...m,asset:assetFor(m.food)}));setMeals(next);localStorage.setItem(cacheKey,JSON.stringify(next))}};
-useEffect(()=>{sync();const on=()=>{setOnline(true);sync();setNotice("已恢复网络，记录已同步")},off=()=>{setOnline(false);setNotice("已进入离线模式，记录会稍后同步")};window.addEventListener("online",on);window.addEventListener("offline",off);return()=>{window.removeEventListener("online",on);window.removeEventListener("offline",off)}},[]);
-const addMeal=async record=>{const local={...record,id:`local-${Date.now()}`,localId:Date.now(),eaten_at:`2026-07-13T${record.time}:00+02:00`,asset:assetFor(record.food)};const updated=[...meals,local].sort((a,b)=>new Date(a.eaten_at)-new Date(b.eaten_at));setMeals(updated);localStorage.setItem(cacheKey,JSON.stringify(updated));setSheetOpen(false);if(!navigator.onLine){localStorage.setItem(pendingKey,JSON.stringify([...readLocal(pendingKey),local]));setNotice("已离线保存，联网后自动同步");return}const{data:{user}}=await supabase.auth.getUser();if(!user){localStorage.setItem(pendingKey,JSON.stringify([...readLocal(pendingKey),local]));setAuthOpen(true);setNotice("已保存在手机，登录后同步");return}const{error}=await supabase.from("meals").insert({user_id:user.id,food:record.food,amount_grams:record.amount_grams,eaten_at:local.eaten_at,reaction:record.reaction,note:record.note,emoji:"🥄"});setNotice(error?"已保存在手机，稍后自动重试":"这一餐已同步给家人")};
-const changeAvatar=async event=>{const file=event.target.files?.[0];if(!file)return;try{const{blob,dataUrl}=await prepareAvatar(file);setAvatar(dataUrl);localStorage.setItem(avatarKey,dataUrl);if(!navigator.onLine){setNotice("头像已保存在手机，联网登录后可同步");return}const{data:{user}}=await supabase.auth.getUser();if(!user){setAuthOpen(true);setNotice("头像已保存在手机，登录后可同步");return}const path=`${user.id}/elnaz-avatar.webp`;const{error:uploadError}=await supabase.storage.from("baby-avatars").upload(path,blob,{contentType:"image/webp",upsert:true});if(uploadError)throw uploadError;const{error:profileError}=await supabase.from("baby_profiles").upsert({user_id:user.id,baby_name:"Elnaz",avatar_path:path,updated_at:new Date().toISOString()});if(profileError)throw profileError;setNotice("Elnaz 的头像已同步给家人")}catch{setNotice("头像保存失败，请换一张图片重试")}};
-return <div className="app-shell"><div className="mobile-prototype"><main className="content"><Header online={online} onCalendar={()=>setNotice("日历视图即将打开")}/><button className="primary-action" onClick={()=>setSheetOpen(true)}><Plus size={25}/>记录一餐</button><HealthStrip/><div className="daily-summary"><Check/><span>今天已吃 {meals.length} 餐 · 共 {total} 克 · 暂无异常</span></div><MealTimeline meals={meals}/><section className="next-food"><div className="next-title"><span><Sparkles/>下一种可以尝试</span><button>为什么推荐 <ChevronRight size={15}/></button></div><div className="next-body"><img src="/assets/pumpkin.png" alt="南瓜"/><div><h2>南瓜泥</h2><p>细腻香甜，富含 β-胡萝卜素。</p><small>建议 10–15克 · 上午尝试</small></div><button aria-label="加入计划"><Plus/></button></div></section><section className="allergy-note"><AlertTriangle/><div><h2>关注宝宝反应</h2><p>首次尝试新食物，建议观察 2–3 天；如出现不适，请暂停并咨询医生。</p></div><button>了解更多 <ChevronRight/></button></section></main><nav className="bottom-nav">{[[CalendarDays,"今天"],[Library,"食物库"],[ClipboardList,"计划"],[Sprout,"成长"]].map(([Icon,label],i)=><button className={i===0?"active":""} key={label}><Icon/><span>{label}</span></button>)}</nav><AnimatePresence>{notice&&<motion.div className="toast" initial={{opacity:0,y:16}} animate={{opacity:1,y:0}} exit={{opacity:0}} onAnimationComplete={()=>setTimeout(()=>setNotice(""),2200)}>{notice}</motion.div>}</AnimatePresence></div><aside className="desktop-companion"><span>宝贝食光</span><h1>把每一口成长，<br/>安心地记在一起。</h1><p>专为父母共同使用的宝宝辅食日记。</p><div><ShieldCheck/>云端同步与离线记录</div></aside><AddMealDialog open={sheetOpen} onOpenChange={setSheetOpen} onSave={addMeal}/><AuthDialog open={authOpen} onSignedIn={()=>{setAuthOpen(false);sync()}}/></div>}
-export{App};
+/* ---------- 日期 ---------- */
+const dayKeyOf = date => {
+  const d = new Date(date);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+};
+const todayKey = () => dayKeyOf(new Date());
+const fmtTime = iso => new Date(iso).toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit", hour12: false });
+const fmtDateCN = key => {
+  const [y, m, d] = key.split("-").map(Number);
+  const date = new Date(y, m - 1, d);
+  const week = ["日", "一", "二", "三", "四", "五", "六"][date.getDay()];
+  return `${m}月${d}日 · 星期${week}`;
+};
+const nowHHMM = () => new Date().toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit", hour12: false });
+const isoFor = (dayKey, hhmm) => {
+  const [y, m, d] = dayKey.split("-").map(Number);
+  const [h, min] = hhmm.split(":").map(Number);
+  return new Date(y, m - 1, d, h, min).toISOString();
+};
+const ageMonths = birth => {
+  const b = new Date(birth), n = new Date();
+  let months = (n.getFullYear() - b.getFullYear()) * 12 + n.getMonth() - b.getMonth();
+  if (n.getDate() < b.getDate()) months -= 1;
+  return Math.max(months, 0);
+};
+
+/* ---------- 食物库 ---------- */
+const FOOD_LIBRARY = [
+  { name: "婴儿米糊", emoji: "🍚", months: 4, stage: "4–6个月", amount: "10–30克", tip: "最常见的第一口辅食，铁强化米糊更好。", asset: "/assets/rice-cereal.png" },
+  { name: "苹果泥", emoji: "🍎", months: 4, stage: "4–6个月", amount: "15–30克", tip: "蒸熟后打泥，口感温和，宝宝接受度高。", asset: "/assets/apple-puree.png" },
+  { name: "香蕉泥", emoji: "🍌", months: 4, stage: "4–6个月", amount: "15–30克", tip: "无需加热，压成泥即可，注意选熟透的香蕉。" },
+  { name: "南瓜泥", emoji: "🎃", months: 5, stage: "4–6个月", amount: "10–15克", tip: "细腻香甜，富含 β-胡萝卜素。", asset: "/assets/pumpkin.png" },
+  { name: "胡萝卜泥", emoji: "🥕", months: 5, stage: "4–6个月", amount: "10–20克", tip: "蒸软后打泥，加少量水调稀更易吞咽。" },
+  { name: "土豆泥", emoji: "🥔", months: 5, stage: "4–6个月", amount: "15–30克", tip: "口感绵软，可以和米糊混合喂。" },
+  { name: "梨泥", emoji: "🍐", months: 5, stage: "4–6个月", amount: "15–30克", tip: "水分足，便秘时可以适量多吃一点。" },
+  { name: "西葫芦泥", emoji: "🥒", months: 6, stage: "6–8个月", amount: "15–30克", tip: "清淡不易过敏，适合蔬菜入门。" },
+  { name: "蛋黄泥", emoji: "🥚", months: 6, stage: "6–8个月", amount: "1/4–1个", tip: "从四分之一个开始，观察 3 天再加量。" },
+  { name: "牛油果泥", emoji: "🥑", months: 6, stage: "6–8个月", amount: "15–30克", tip: "健康脂肪丰富，直接压泥即可。" },
+  { name: "西兰花泥", emoji: "🥦", months: 6, stage: "6–8个月", amount: "15–30克", tip: "只取花冠部分，蒸软打泥。" },
+  { name: "红薯泥", emoji: "🍠", months: 6, stage: "6–8个月", amount: "15–30克", tip: "自带甜味，宝宝普遍很喜欢。" },
+  { name: "燕麦糊", emoji: "🥣", months: 6, stage: "6–8个月", amount: "20–40克", tip: "选婴儿燕麦片，煮至软烂。" },
+  { name: "鸡肉泥", emoji: "🍗", months: 7, stage: "6–8个月", amount: "10–20克", tip: "第一口肉类推荐，蒸熟后加水打成细泥。" },
+  { name: "猪肝泥", emoji: "🍖", months: 7, stage: "6–8个月", amount: "5–15克", tip: "补铁好帮手，每周 1–2 次即可。" },
+  { name: "豌豆泥", emoji: "🫛", months: 7, stage: "6–8个月", amount: "15–30克", tip: "过筛去皮，口感更细腻。" },
+  { name: "三文鱼泥", emoji: "🐟", months: 8, stage: "8–12个月", amount: "10–20克", tip: "富含 DHA，务必挑净鱼刺。" },
+  { name: "豆腐碎", emoji: "🍲", months: 8, stage: "8–12个月", amount: "20–30克", tip: "嫩豆腐焯水后压碎，优质植物蛋白。" },
+  { name: "番茄碎", emoji: "🍅", months: 8, stage: "8–12个月", amount: "15–30克", tip: "去皮去籽切碎，可以拌在面里。" },
+  { name: "软烂面条", emoji: "🍜", months: 8, stage: "8–12个月", amount: "30–50克", tip: "剪成小段煮软，练习咀嚼。" },
+  { name: "蓝莓碎", emoji: "🫐", months: 9, stage: "8–12个月", amount: "15–30克", tip: "对半切开或压扁，避免整颗喂。" },
+  { name: "酸奶", emoji: "🥛", months: 9, stage: "8–12个月", amount: "30–50克", tip: "选无糖全脂原味酸奶。" },
+  { name: "软米饭", emoji: "🍙", months: 10, stage: "8–12个月", amount: "30–60克", tip: "煮得比大人的软一些，练习自己抓着吃。" },
+  { name: "手指食物", emoji: "🥖", months: 10, stage: "8–12个月", amount: "适量", tip: "蒸软的胡萝卜条、香蕉块，锻炼抓握。" },
+];
+const libFor = food => FOOD_LIBRARY.find(f => food.includes(f.name.replace("泥", "")) || f.name.includes(food));
+const assetFor = food => libFor(food)?.asset || null;
+const emojiFor = food => libFor(food)?.emoji || "🥄";
+
+/* ---------- 头像 ---------- */
+const prepareAvatar = file => new Promise((resolve, reject) => {
+  const img = new Image(), reader = new FileReader();
+  reader.onerror = reject;
+  reader.onload = () => {
+    img.onload = () => {
+      const size = 512, canvas = document.createElement("canvas");
+      canvas.width = size; canvas.height = size;
+      const ctx = canvas.getContext("2d"), side = Math.min(img.width, img.height);
+      ctx.drawImage(img, (img.width - side) / 2, (img.height - side) / 2, side, side, 0, 0, size, size);
+      canvas.toBlob(blob => blob ? resolve({ blob, dataUrl: canvas.toDataURL("image/webp", .84) }) : reject(new Error("图片处理失败")), "image/webp", .84);
+    };
+    img.src = reader.result;
+  };
+  reader.readAsDataURL(file);
+});
+
+/* ---------- 小组件 ---------- */
+function FoodPhoto({ food, size = 56 }) {
+  const asset = assetFor(food);
+  return asset
+    ? <img src={asset} alt="" style={{ width: size, height: size }} className="food-photo" />
+    : <span className="food-emoji" style={{ width: size, height: size, fontSize: size * .52 }}>{emojiFor(food)}</span>;
+}
+
+function Header({ online, status, avatar, onAvatar, onCalendar, birth, onBirthChange, onSyncTap }) {
+  const months = ageMonths(birth);
+  return (
+    <header className="baby-header">
+      <label className="avatar-editor" aria-label="更换 Elnaz 的头像">
+        <img className="baby-avatar" src={avatar} alt="Elnaz 的头像" />
+        <span><Camera size={13} /></span>
+        <input type="file" accept="image/jpeg,image/png,image/webp" onChange={onAvatar} />
+      </label>
+      <div className="baby-identity">
+        <div>
+          <strong>Elnaz</strong>
+          <label className="age-editor" title="点击修改出生日期">
+            <span>{months}个月</span>
+            <input type="date" value={birth} max={todayKey()} onChange={e => e.target.value && onBirthChange(e.target.value)} />
+          </label>
+        </div>
+        <p>{fmtDateCN(todayKey())}</p>
+      </div>
+      <button className="calendar-button" onClick={onCalendar} aria-label="查看日历"><CalendarDays size={20} /></button>
+      <div className="family-sync" role="button" tabIndex={0} onClick={onSyncTap} onKeyDown={e => e.key === "Enter" && onSyncTap()} aria-label="家庭同步，点击登录或同步">
+        <span><Baby size={16} /></span><i /><span className="parent-two"><Baby size={16} /></span>
+        <small>{status || (online ? "点此登录同步" : "离线记录中")}</small>
+      </div>
+    </header>
+  );
+}
+
+function HealthStrip({ todayMeals }) {
+  const reactions = todayMeals.map(m => m.note);
+  const skin = reactions.includes("皮肤反应");
+  const digest = reactions.includes("消化不适");
+  const watch = reactions.includes("需要观察");
+  const items = [
+    [ShieldCheck, skin || digest ? "有反应，注意观察" : watch ? "需要观察" : "无异常", skin || digest],
+    [Sparkles, skin ? "皮肤有反应" : "皮肤正常", skin],
+    [Activity, digest ? "消化不适" : "消化正常", digest],
+  ];
+  return (
+    <section className="health-block">
+      <h2>身体反应 / 过敏状态</h2>
+      <div className="health-strip">
+        {items.map(([Icon, label, warn]) => (
+          <div key={label} className={warn ? "warn" : ""}><Icon /><span>{label}</span></div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function MealTimeline({ meals, sortBy, onToggleSort, onOpenMeal, onViewAll }) {
+  return (
+    <section className="meal-section">
+      <div className="section-title">
+        <h2>今日记录</h2>
+        <button onClick={onToggleSort}>{sortBy === "time" ? "按时间" : "按分量"} <ChevronRight size={16} /></button>
+      </div>
+      <div className="timeline">
+        {meals.length === 0 && <p className="empty-hint">今天还没有记录，点上面的「记录一餐」开始吧 🍼</p>}
+        {meals.map((meal, index) => (
+          <motion.article
+            className="meal-row" key={meal.id} role="button" tabIndex={0}
+            onClick={() => onOpenMeal(meal)} onKeyDown={e => e.key === "Enter" && onOpenMeal(meal)}
+            initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: index * .06 }}
+          >
+            <time>{fmtTime(meal.eaten_at)}</time>
+            <span className="timeline-dot" />
+            <FoodPhoto food={meal.food} />
+            <div className="meal-copy">
+              <h3>{meal.food}</h3>
+              <p><b>{meal.amount_grams}克</b><span>{meal.reaction}</span></p>
+            </div>
+            <div className="meal-safe"><Check size={15} /><span>{meal.note || "无异常"}</span></div>
+            <ChevronRight className="meal-chevron" size={20} />
+          </motion.article>
+        ))}
+      </div>
+      <button className="view-all" onClick={onViewAll}>查看全部记录 <ChevronRight size={17} /></button>
+    </section>
+  );
+}
+
+function Choices({ title, value, setValue, items }) {
+  return (
+    <fieldset>
+      <legend>{title}</legend>
+      <div className="choice-row">
+        {items.map(x => <button type="button" className={value === x ? "selected" : ""} onClick={() => setValue(x)} key={x}>{x}</button>)}
+      </div>
+    </fieldset>
+  );
+}
+
+function AddMealDialog({ open, prefill, onOpenChange, onSave }) {
+  const [food, setFood] = useState("苹果泥");
+  const [amount, setAmount] = useState(30);
+  const [time, setTime] = useState(nowHHMM);
+  const [reaction, setReaction] = useState("很喜欢");
+  const [body, setBody] = useState("无异常");
+  useEffect(() => {
+    if (open) {
+      setFood(prefill?.food || "苹果泥");
+      setAmount(prefill?.amount || 30);
+      setTime(nowHHMM());
+      setReaction("很喜欢");
+      setBody("无异常");
+    }
+  }, [open, prefill]);
+  return (
+    <Dialog.Root open={open} onOpenChange={onOpenChange}>
+      <Dialog.Portal>
+        <Dialog.Overlay className="dialog-overlay" />
+        <Dialog.Content className="meal-sheet">
+          <div className="sheet-grabber" />
+          <div className="sheet-head">
+            <div>
+              <Dialog.Title>记录一餐</Dialog.Title>
+              <Dialog.Description>几步就能记好，常用选项已为你准备。</Dialog.Description>
+            </div>
+            <Dialog.Close className="icon-button"><X size={20} /></Dialog.Close>
+          </div>
+          <form onSubmit={e => { e.preventDefault(); if (food.trim()) onSave({ food: food.trim(), amount_grams: Number(amount) || 0, time, reaction, note: body }); }}>
+            <label>吃了什么
+              <input list="food-options" value={food} onChange={e => setFood(e.target.value)} placeholder="选择或输入食物名" required />
+              <datalist id="food-options">
+                {FOOD_LIBRARY.map(f => <option key={f.name} value={f.name} />)}
+              </datalist>
+            </label>
+            <div className="form-grid">
+              <label>分量（克）<input type="number" min="1" max="1000" value={amount} onChange={e => setAmount(e.target.value)} /></label>
+              <label>时间<input type="time" value={time} onChange={e => setTime(e.target.value)} /></label>
+            </div>
+            <Choices title="喜欢程度" value={reaction} setValue={setReaction} items={["很喜欢", "愿意尝试", "一般般", "不太喜欢"]} />
+            <Choices title="身体反应" value={body} setValue={setBody} items={["无异常", "皮肤反应", "消化不适", "需要观察"]} />
+            <button className="save-button" type="submit"><Check size={19} />保存这餐</button>
+          </form>
+        </Dialog.Content>
+      </Dialog.Portal>
+    </Dialog.Root>
+  );
+}
+
+function MealDetailDialog({ meal, onClose, onDelete }) {
+  return (
+    <Dialog.Root open={!!meal} onOpenChange={v => !v && onClose()}>
+      <Dialog.Portal>
+        <Dialog.Overlay className="dialog-overlay" />
+        <Dialog.Content className="meal-sheet">
+          <div className="sheet-grabber" />
+          {meal && <>
+            <div className="sheet-head">
+              <div>
+                <Dialog.Title>{meal.food}</Dialog.Title>
+                <Dialog.Description>{fmtDateCN(dayKeyOf(meal.eaten_at))} {fmtTime(meal.eaten_at)}</Dialog.Description>
+              </div>
+              <Dialog.Close className="icon-button"><X size={20} /></Dialog.Close>
+            </div>
+            <div className="detail-body">
+              <FoodPhoto food={meal.food} size={72} />
+              <ul>
+                <li><span>分量</span><b>{meal.amount_grams} 克</b></li>
+                <li><span>喜欢程度</span><b>{meal.reaction}</b></li>
+                <li><span>身体反应</span><b>{meal.note || "无异常"}</b></li>
+              </ul>
+            </div>
+            <button className="danger-button" onClick={() => { if (confirm(`删除这条「${meal.food}」记录？`)) onDelete(meal); }}>
+              <Trash2 size={17} />删除这条记录
+            </button>
+          </>}
+        </Dialog.Content>
+      </Dialog.Portal>
+    </Dialog.Root>
+  );
+}
+
+function CalendarDialog({ open, onOpenChange, meals }) {
+  const [month, setMonth] = useState(() => { const n = new Date(); return new Date(n.getFullYear(), n.getMonth(), 1); });
+  const [selected, setSelected] = useState(todayKey());
+  useEffect(() => { if (open) { const n = new Date(); setMonth(new Date(n.getFullYear(), n.getMonth(), 1)); setSelected(todayKey()); } }, [open]);
+  const byDay = useMemo(() => {
+    const map = {};
+    meals.forEach(m => { const k = dayKeyOf(m.eaten_at); (map[k] = map[k] || []).push(m); });
+    return map;
+  }, [meals]);
+  const cells = useMemo(() => {
+    const first = month.getDay(), days = new Date(month.getFullYear(), month.getMonth() + 1, 0).getDate();
+    return [...Array(first).fill(null), ...Array.from({ length: days }, (_, i) => i + 1)];
+  }, [month]);
+  const keyOfDay = d => dayKeyOf(new Date(month.getFullYear(), month.getMonth(), d));
+  const dayMeals = (byDay[selected] || []).slice().sort((a, b) => new Date(a.eaten_at) - new Date(b.eaten_at));
+  return (
+    <Dialog.Root open={open} onOpenChange={onOpenChange}>
+      <Dialog.Portal>
+        <Dialog.Overlay className="dialog-overlay" />
+        <Dialog.Content className="meal-sheet calendar-sheet">
+          <div className="sheet-grabber" />
+          <div className="sheet-head">
+            <div>
+              <Dialog.Title>记录日历</Dialog.Title>
+              <Dialog.Description>点日期查看那天吃了什么。</Dialog.Description>
+            </div>
+            <Dialog.Close className="icon-button"><X size={20} /></Dialog.Close>
+          </div>
+          <div className="calendar-nav">
+            <button onClick={() => setMonth(new Date(month.getFullYear(), month.getMonth() - 1, 1))} aria-label="上个月"><ChevronLeft size={18} /></button>
+            <strong>{month.getFullYear()}年{month.getMonth() + 1}月</strong>
+            <button onClick={() => setMonth(new Date(month.getFullYear(), month.getMonth() + 1, 1))} aria-label="下个月"><ChevronRight size={18} /></button>
+          </div>
+          <div className="calendar-grid">
+            {["日", "一", "二", "三", "四", "五", "六"].map(w => <span key={w} className="week-head">{w}</span>)}
+            {cells.map((d, i) => d === null
+              ? <span key={`e${i}`} />
+              : <button
+                  key={d}
+                  className={`day-cell ${keyOfDay(d) === selected ? "selected" : ""} ${keyOfDay(d) === todayKey() ? "today" : ""}`}
+                  onClick={() => setSelected(keyOfDay(d))}
+                >
+                  {d}{byDay[keyOfDay(d)] && <i />}
+                </button>
+            )}
+          </div>
+          <div className="calendar-day-list">
+            <h3>{fmtDateCN(selected)}</h3>
+            {dayMeals.length === 0
+              ? <p className="empty-hint">这一天没有记录</p>
+              : dayMeals.map(m => (
+                <div className="mini-meal" key={m.id}>
+                  <time>{fmtTime(m.eaten_at)}</time>
+                  <FoodPhoto food={m.food} size={36} />
+                  <span>{m.food}</span>
+                  <b>{m.amount_grams}克</b>
+                  <small>{m.reaction}</small>
+                </div>
+              ))}
+          </div>
+        </Dialog.Content>
+      </Dialog.Portal>
+    </Dialog.Root>
+  );
+}
+
+function InfoDialog({ info, onClose }) {
+  return (
+    <Dialog.Root open={!!info} onOpenChange={v => !v && onClose()}>
+      <Dialog.Portal>
+        <Dialog.Overlay className="dialog-overlay" />
+        <Dialog.Content className="meal-sheet">
+          <div className="sheet-grabber" />
+          {info && <>
+            <div className="sheet-head">
+              <div>
+                <Dialog.Title>{info.title}</Dialog.Title>
+                <Dialog.Description>{info.subtitle || ""}</Dialog.Description>
+              </div>
+              <Dialog.Close className="icon-button"><X size={20} /></Dialog.Close>
+            </div>
+            <div className="info-body">
+              {info.paragraphs.map((p, i) => <p key={i}>{p}</p>)}
+            </div>
+          </>}
+        </Dialog.Content>
+      </Dialog.Portal>
+    </Dialog.Root>
+  );
+}
+
+/* ---------- 页面 ---------- */
+function LibraryView({ months, tried, onRecord, onPlan }) {
+  const [query, setQuery] = useState("");
+  const stages = useMemo(() => {
+    const filtered = FOOD_LIBRARY.filter(f => f.name.includes(query.trim()));
+    const groups = [];
+    filtered.forEach(f => {
+      let g = groups.find(x => x.stage === f.stage);
+      if (!g) { g = { stage: f.stage, foods: [] }; groups.push(g); }
+      g.foods.push(f);
+    });
+    return groups;
+  }, [query]);
+  return (
+    <div className="page">
+      <h1 className="page-title">食物库</h1>
+      <p className="page-sub">按月龄整理的常见辅食，Elnaz 现在 {months} 个月。</p>
+      <input className="search-input" placeholder="搜索食物…" value={query} onChange={e => setQuery(e.target.value)} />
+      {stages.map(group => (
+        <section key={group.stage} className="lib-stage">
+          <h2>{group.stage}</h2>
+          {group.foods.map(f => (
+            <div className={`lib-row ${f.months > months ? "not-yet" : ""}`} key={f.name}>
+              <FoodPhoto food={f.name} size={46} />
+              <div>
+                <h3>{f.name} {tried.has(f.name) && <em className="tried-tag">已尝试</em>}{f.months > months && <em className="wait-tag">再等等</em>}</h3>
+                <p>{f.tip}</p>
+                <small>建议 {f.amount}</small>
+              </div>
+              <div className="lib-actions">
+                <button onClick={() => onRecord(f)} aria-label={`记录${f.name}`}><Plus size={16} /></button>
+                <button className="ghost" onClick={() => onPlan(f)}>计划</button>
+              </div>
+            </div>
+          ))}
+        </section>
+      ))}
+      {stages.length === 0 && <p className="empty-hint">没有找到「{query}」，记录时可以直接手动输入。</p>}
+    </div>
+  );
+}
+
+function PlanView({ plan, onRecord, onRemove }) {
+  return (
+    <div className="page">
+      <h1 className="page-title">尝试计划</h1>
+      <p className="page-sub">想给 Elnaz 试的新食物，都放在这里。</p>
+      {plan.length === 0 && <p className="empty-hint">计划还是空的。去「食物库」挑一样，或在首页把推荐加进来。</p>}
+      {plan.map(item => (
+        <div className="plan-row" key={item.id}>
+          <FoodPhoto food={item.food} size={46} />
+          <div>
+            <h3>{item.food}</h3>
+            <small>建议 {item.amount || "适量"}</small>
+          </div>
+          <button className="plan-go" onClick={() => onRecord(item)}>去记录</button>
+          <button className="icon-button small" onClick={() => onRemove(item)} aria-label="移除"><X size={15} /></button>
+        </div>
+      ))}
+      <div className="plan-tip">
+        <AlertTriangle size={16} />
+        <span>新食物一次只加一种，观察 2–3 天没有不适，再试下一种。</span>
+      </div>
+    </div>
+  );
+}
+
+function GrowthView({ meals, onOpenMeal }) {
+  const stats = useMemo(() => {
+    const days = new Set(meals.map(m => dayKeyOf(m.eaten_at)));
+    const foods = new Map();
+    meals.forEach(m => foods.set(m.food, (foods.get(m.food) || 0) + 1));
+    return { total: meals.length, days: days.size, foods: [...foods.entries()].sort((a, b) => b[1] - a[1]) };
+  }, [meals]);
+  const grouped = useMemo(() => {
+    const map = new Map();
+    meals.slice().sort((a, b) => new Date(b.eaten_at) - new Date(a.eaten_at)).forEach(m => {
+      const k = dayKeyOf(m.eaten_at);
+      if (!map.has(k)) map.set(k, []);
+      map.get(k).push(m);
+    });
+    return [...map.entries()];
+  }, [meals]);
+  return (
+    <div className="page">
+      <h1 className="page-title">成长记录</h1>
+      <div className="stat-grid">
+        <div><b>{stats.total}</b><span>累计记录</span></div>
+        <div><b>{stats.foods.length}</b><span>尝试过的食物</span></div>
+        <div><b>{stats.days}</b><span>记录天数</span></div>
+      </div>
+      {stats.foods.length > 0 && (
+        <section className="food-tags-block">
+          <h2>已尝试的食物</h2>
+          <div className="food-tags">
+            {stats.foods.map(([name, count]) => <span key={name}>{emojiFor(name)} {name} ×{count}</span>)}
+          </div>
+        </section>
+      )}
+      <section id="all-records">
+        <h2 className="history-title">全部记录</h2>
+        {grouped.length === 0 && <p className="empty-hint">还没有记录，从第一餐开始吧。</p>}
+        {grouped.map(([day, dayMeals]) => (
+          <div className="history-day" key={day}>
+            <h3>{fmtDateCN(day)} · {dayMeals.length} 餐</h3>
+            {dayMeals.map(m => (
+              <button className="mini-meal as-button" key={m.id} onClick={() => onOpenMeal(m)}>
+                <time>{fmtTime(m.eaten_at)}</time>
+                <FoodPhoto food={m.food} size={36} />
+                <span>{m.food}</span>
+                <b>{m.amount_grams}克</b>
+                <small>{m.reaction}</small>
+              </button>
+            ))}
+          </div>
+        ))}
+      </section>
+    </div>
+  );
+}
+
+/* ---------- 主应用 ---------- */
+function App() {
+  const [meals, setMeals] = useState(() => {
+    const all = readLocal(mealsKey, null);
+    if (all) return all;
+    // 迁移旧版本只存当天的缓存（过滤掉演示数据）
+    const legacy = readLocal(legacyCacheKey, []).filter(m => !String(m.id).startsWith("demo-"));
+    if (legacy.length) writeLocal(mealsKey, legacy);
+    return legacy;
+  });
+  const [plan, setPlan] = useState(() => readLocal(planKey, []));
+  const [birth, setBirth] = useState(() => localStorage.getItem(birthKey) || "2026-02-13");
+  const [avatar, setAvatar] = useState(() => localStorage.getItem(avatarKey) || "/assets/baby-avatar.png");
+  const [tab, setTab] = useState("today");
+  const [sheetOpen, setSheetOpen] = useState(false);
+  const [prefill, setPrefill] = useState(null);
+  const [authOpen, setAuthOpen] = useState(false);
+  const [calendarOpen, setCalendarOpen] = useState(false);
+  const [detailMeal, setDetailMeal] = useState(null);
+  const [info, setInfo] = useState(null);
+  const [sortBy, setSortBy] = useState("time");
+  const [online, setOnline] = useState(navigator.onLine);
+  const [notice, setNotice] = useState("");
+  const [syncStatus, setSyncStatus] = useState("");
+
+  const months = ageMonths(birth);
+  const tried = useMemo(() => new Set(meals.map(m => m.food)), [meals]);
+  const todayMeals = useMemo(() => {
+    const list = meals.filter(m => dayKeyOf(m.eaten_at) === todayKey());
+    return list.sort((a, b) => sortBy === "time"
+      ? new Date(a.eaten_at) - new Date(b.eaten_at)
+      : b.amount_grams - a.amount_grams);
+  }, [meals, sortBy]);
+  const total = useMemo(() => todayMeals.reduce((sum, m) => sum + Number(m.amount_grams || 0), 0), [todayMeals]);
+  const recommend = useMemo(
+    () => FOOD_LIBRARY.find(f => f.months <= months && !tried.has(f.name)) || FOOD_LIBRARY.find(f => !tried.has(f.name)) || FOOD_LIBRARY[0],
+    [months, tried],
+  );
+
+  const saveMeals = next => { setMeals(next); writeLocal(mealsKey, next); };
+  const savePlan = next => { setPlan(next); writeLocal(planKey, next); };
+
+  /* --- 云同步 --- */
+  const sync = async () => {
+    if (!navigator.onLine) return;
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+      const { data: profile } = await supabase.from("baby_profiles").select("avatar_path").eq("user_id", user.id).maybeSingle();
+      if (profile?.avatar_path) {
+        const { data: blob } = await supabase.storage.from("baby-avatars").download(profile.avatar_path);
+        if (blob) setAvatar(URL.createObjectURL(blob));
+      }
+      const pending = readLocal(pendingKey, []);
+      if (pending.length) {
+        const rows = pending.map(({ id, localId, time, asset, ...m }) => ({ ...m, user_id: user.id, emoji: emojiFor(m.food) }));
+        const { error } = await supabase.from("meals").insert(rows);
+        if (!error) localStorage.removeItem(pendingKey);
+      }
+      const { data } = await supabase.from("meals").select("*").order("eaten_at");
+      if (data) {
+        const stillPending = readLocal(pendingKey, []);
+        const merged = [...data, ...stillPending];
+        saveMeals(merged);
+        setSyncStatus("爸妈已同步");
+      }
+    } catch { /* 网络异常时保持本地数据 */ }
+  };
+
+  useEffect(() => {
+    sync();
+    const on = () => { setOnline(true); sync(); setNotice("已恢复网络，记录已同步"); };
+    const off = () => { setOnline(false); setNotice("已进入离线模式，记录会稍后同步"); };
+    window.addEventListener("online", on);
+    window.addEventListener("offline", off);
+    return () => { window.removeEventListener("online", on); window.removeEventListener("offline", off); };
+  }, []);
+
+  /* --- 记一餐 --- */
+  const addMeal = async record => {
+    const local = {
+      food: record.food, amount_grams: record.amount_grams, reaction: record.reaction, note: record.note,
+      id: `local-${Date.now()}`, eaten_at: isoFor(todayKey(), record.time),
+    };
+    saveMeals([...meals, local]);
+    setSheetOpen(false);
+    setPlan(prev => {
+      const next = prev.filter(p => p.food !== record.food);
+      if (next.length !== prev.length) writeLocal(planKey, next);
+      return next;
+    });
+    const queue = () => writeLocal(pendingKey, [...readLocal(pendingKey, []), local]);
+    if (!navigator.onLine) { queue(); setNotice("已离线保存，联网后自动同步"); return; }
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) { queue(); setNotice("已保存在本机，登录后可与家人同步"); return; }
+    const { error } = await supabase.from("meals").insert({
+      user_id: user.id, food: local.food, amount_grams: local.amount_grams,
+      eaten_at: local.eaten_at, reaction: local.reaction, note: local.note, emoji: emojiFor(local.food),
+    });
+    if (error) { queue(); setNotice("已保存在本机，稍后自动重试"); } else { setNotice("这一餐已同步给家人"); sync(); }
+  };
+
+  const deleteMeal = async meal => {
+    saveMeals(meals.filter(m => m.id !== meal.id));
+    writeLocal(pendingKey, readLocal(pendingKey, []).filter(m => m.id !== meal.id));
+    setDetailMeal(null);
+    if (!String(meal.id).startsWith("local-") && navigator.onLine) {
+      await supabase.from("meals").delete().eq("id", meal.id);
+    }
+    setNotice("已删除这条记录");
+  };
+
+  /* --- 计划 --- */
+  const addToPlan = food => {
+    if (plan.some(p => p.food === food.name)) { setNotice(`「${food.name}」已经在计划里了`); return; }
+    savePlan([...plan, { id: `plan-${Date.now()}`, food: food.name, amount: food.amount }]);
+    setNotice(`已把「${food.name}」加入计划`);
+  };
+
+  const syncTap = async () => {
+    if (!navigator.onLine) { setNotice("现在离线，联网后会自动同步"); return; }
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) { setAuthOpen(true); return; }
+    setNotice("正在同步…");
+    await sync();
+    setNotice("已和家人同步");
+  };
+
+  const openRecord = item => {
+    setPrefill({ food: item.food || item.name, amount: parseInt(item.amount) || 30 });
+    setSheetOpen(true);
+  };
+
+  const changeAvatar = async event => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    try {
+      const { blob, dataUrl } = await prepareAvatar(file);
+      setAvatar(dataUrl);
+      localStorage.setItem(avatarKey, dataUrl);
+      if (!navigator.onLine) { setNotice("头像已保存在手机，联网登录后可同步"); return; }
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) { setNotice("头像已保存在手机，登录后可同步"); return; }
+      const path = `${user.id}/elnaz-avatar.webp`;
+      const { error: uploadError } = await supabase.storage.from("baby-avatars").upload(path, blob, { contentType: "image/webp", upsert: true });
+      if (uploadError) throw uploadError;
+      const { error: profileError } = await supabase.from("baby_profiles").upsert({ user_id: user.id, baby_name: "Elnaz", avatar_path: path, updated_at: new Date().toISOString() });
+      if (profileError) throw profileError;
+      setNotice("Elnaz 的头像已同步给家人");
+    } catch { setNotice("头像保存失败，请换一张图片重试"); }
+  };
+
+  const allergyInfo = {
+    title: "关注宝宝反应",
+    subtitle: "新食物怎么加才安心",
+    paragraphs: [
+      "每次只添加一种新食物，连续观察 2–3 天，确认没有不适再引入下一种。",
+      "常见的过敏信号：皮肤出红疹或风团、呕吐或腹泻、口周红肿。轻微反应先暂停这种食物，记录下来；如出现呼吸急促、面部肿胀等严重反应，请立即就医。",
+      "鸡蛋、花生、鱼虾、小麦、大豆、牛奶是常见易过敏食物，第一次尝试时选上午，分量从一小勺开始。",
+      "这里的内容只是常识提醒，具体请以儿科医生的建议为准。",
+    ],
+  };
+  const recommendInfo = recommend && {
+    title: `为什么推荐${recommend.name}？`,
+    subtitle: `适合 ${recommend.stage} 的宝宝`,
+    paragraphs: [
+      recommend.tip,
+      `Elnaz 现在 ${months} 个月，还没有记录过${recommend.name}，正适合尝试。建议分量 ${recommend.amount}，第一次选在上午，方便白天观察反应。`,
+    ],
+  };
+
+  return (
+    <div className="app-shell">
+      <div className="mobile-prototype">
+        <main className="content">
+          {tab === "today" && <>
+            <Header
+              online={online} status={syncStatus} avatar={avatar} onAvatar={changeAvatar}
+              onCalendar={() => setCalendarOpen(true)} birth={birth} onSyncTap={syncTap}
+              onBirthChange={v => { setBirth(v); localStorage.setItem(birthKey, v); setNotice("出生日期已更新"); }}
+            />
+            <button className="primary-action" onClick={() => { setPrefill(null); setSheetOpen(true); }}><Plus size={25} />记录一餐</button>
+            <HealthStrip todayMeals={todayMeals} />
+            <div className="daily-summary">
+              <Check />
+              <span>今天已吃 {todayMeals.length} 餐 · 共 {total} 克{todayMeals.some(m => m.note && m.note !== "无异常") ? " · 有反应需观察" : " · 暂无异常"}</span>
+            </div>
+            <MealTimeline
+              meals={todayMeals} sortBy={sortBy}
+              onToggleSort={() => setSortBy(s => s === "time" ? "amount" : "time")}
+              onOpenMeal={setDetailMeal} onViewAll={() => setTab("growth")}
+            />
+            <section className="next-food">
+              <div className="next-title">
+                <span><Sparkles />下一种可以尝试</span>
+                <button onClick={() => setInfo(recommendInfo)}>为什么推荐 <ChevronRight size={15} /></button>
+              </div>
+              <div className="next-body">
+                <FoodPhoto food={recommend.name} size={70} />
+                <div>
+                  <h2>{recommend.name}</h2>
+                  <p>{recommend.tip}</p>
+                  <small>建议 {recommend.amount} · 上午尝试</small>
+                </div>
+                <button aria-label="加入计划" onClick={() => addToPlan(recommend)}><Plus /></button>
+              </div>
+            </section>
+            <section className="allergy-note">
+              <AlertTriangle />
+              <div>
+                <h2>关注宝宝反应</h2>
+                <p>首次尝试新食物，建议观察 2–3 天；如出现不适，请暂停并咨询医生。</p>
+              </div>
+              <button onClick={() => setInfo(allergyInfo)}>了解更多 <ChevronRight /></button>
+            </section>
+          </>}
+          {tab === "library" && <LibraryView months={months} tried={tried} onRecord={openRecord} onPlan={addToPlan} />}
+          {tab === "plan" && <PlanView plan={plan} onRecord={openRecord} onRemove={item => savePlan(plan.filter(p => p.id !== item.id))} />}
+          {tab === "growth" && <GrowthView meals={meals} onOpenMeal={setDetailMeal} />}
+        </main>
+        <nav className="bottom-nav">
+          {[["today", CalendarDays, "今天"], ["library", Library, "食物库"], ["plan", ClipboardList, "计划"], ["growth", Sprout, "成长"]].map(([key, Icon, label]) => (
+            <button className={tab === key ? "active" : ""} key={key} onClick={() => setTab(key)}>
+              <Icon /><span>{label}</span>
+              {key === "plan" && plan.length > 0 && <em className="nav-badge">{plan.length}</em>}
+            </button>
+          ))}
+        </nav>
+        <AnimatePresence>
+          {notice && (
+            <motion.div
+              className="toast" initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
+              onAnimationComplete={() => setTimeout(() => setNotice(""), 2200)}
+            >{notice}</motion.div>
+          )}
+        </AnimatePresence>
+      </div>
+      <aside className="desktop-companion">
+        <span>宝贝食光</span>
+        <h1>把每一口成长，<br />安心地记在一起。</h1>
+        <p>专为父母共同使用的宝宝辅食日记。</p>
+        <div><ShieldCheck />云端同步与离线记录</div>
+      </aside>
+      <AddMealDialog open={sheetOpen} prefill={prefill} onOpenChange={setSheetOpen} onSave={addMeal} />
+      <AuthDialog open={authOpen} onOpenChange={setAuthOpen} onSignedIn={() => { setAuthOpen(false); sync(); setNotice("登录成功，正在同步记录"); }} />
+      <CalendarDialog open={calendarOpen} onOpenChange={setCalendarOpen} meals={meals} />
+      <MealDetailDialog meal={detailMeal} onClose={() => setDetailMeal(null)} onDelete={deleteMeal} />
+      <InfoDialog info={info} onClose={() => setInfo(null)} />
+    </div>
+  );
+}
+
+function AuthDialog({ open, onOpenChange, onSignedIn }) {
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [message, setMessage] = useState("");
+  const login = async e => {
+    e.preventDefault();
+    setMessage("正在登录…");
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+    if (error) setMessage("登录失败，请检查邮箱和密码");
+    else { setMessage(""); onSignedIn(data.user); }
+  };
+  const signup = async () => {
+    setMessage("正在创建家庭账号…");
+    const { error } = await supabase.auth.signUp({ email, password });
+    setMessage(error ? error.message : "请打开邮箱中的确认链接，然后回来登录。");
+  };
+  return (
+    <Dialog.Root open={open} onOpenChange={onOpenChange}>
+      <Dialog.Portal>
+        <Dialog.Overlay className="dialog-overlay" />
+        <Dialog.Content className="auth-card">
+          <Dialog.Close className="icon-button auth-close" aria-label="关闭"><X size={18} /></Dialog.Close>
+          <img src="/assets/baby-avatar.png" alt="" />
+          <Dialog.Title>欢迎来到宝贝食光</Dialog.Title>
+          <Dialog.Description>登录后，你和家人可以随时同步 Elnaz 的辅食记录。</Dialog.Description>
+          <form onSubmit={login}>
+            <label>邮箱<input type="email" value={email} onChange={e => setEmail(e.target.value)} required /></label>
+            <label>密码<input type="password" minLength="6" value={password} onChange={e => setPassword(e.target.value)} required /></label>
+            <button className="save-button" type="submit">登录</button>
+            <button className="signup-link" type="button" onClick={signup}>第一次使用？创建家庭账号</button>
+            <p className="auth-message">{message}</p>
+          </form>
+        </Dialog.Content>
+      </Dialog.Portal>
+    </Dialog.Root>
+  );
+}
+
+export { App };
