@@ -3,6 +3,7 @@ dist/
 .product-design/
 design-qa.md
 AGENTS.md
+.playwright-cli/
 *.log
 .env*
 !.env.example

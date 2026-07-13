@@ -52,17 +52,34 @@ const ageMonths = birth => {
 /* ---------- 食物库（数据来自法国辅食添加对照表，见 foodLibrary.js） ---------- */
 import { FOOD_LIBRARY, FOOD_CATS } from "./foodLibrary.js";
 const stageForMonths = m => m >= 12 ? "12个月+" : m >= 8 ? "8–12个月" : m >= 6 ? "6–8个月" : "4–6个月";
+// 翻译修正后的兼容表：保留旧版本里用户已经编辑过的文字和照片。
+const LEGACY_BASE_NAMES = {
+  南瓜: "红皮南瓜", 大南瓜: "万圣节南瓜", 莙荙菜: "瑞士甜菜（莙荙菜）", 根芹: "块根芹",
+  菊苣: "比利时菊苣", 欧防风: "欧洲防风", 芜菁甘蓝: "瑞典芜菁", 菊芋: "菊芋（洋姜）",
+  飞碟瓜: "飞碟南瓜", 樱桃萝卜: "小红萝卜", 婆罗门参: "西洋牛蒡（婆罗门参）",
+  花菜: "花椰菜", 抱子甘蓝: "球芽甘蓝", 苤蓝: "球茎甘蓝（苤蓝）", 小柑橘: "克莱门氏小柑橘",
+  西柚: "葡萄柚（西柚）", 榅桲: "榅桲（欧洲木瓜）", 大黄: "食用大黄", 栗子: "板栗",
+  婴儿米粉: "婴儿谷物粉", 小麦面粉: "小麦粉", 白米饭: "白米", 粗麦粉: "粗麦粉、布格麦",
+  木薯粉: "木薯淀粉（西米）", 白身鱼: "低脂鱼（白身鱼）", 油性鱼: "高脂鱼（油性鱼）",
+  加工肉制品: "熟食肉制品", 奶酪: "巴氏杀菌奶酪", 香草香料: "香草与香料",
+};
+const aliasesForBase = baseName => Object.entries(LEGACY_BASE_NAMES).filter(([, current]) => current === baseName).map(([legacy]) => legacy);
 // 内置食物库 + 用户自定义/编辑过的食物，合并后的结果（App 渲染时刷新）
 let mergedLibrary = FOOD_LIBRARY.map(f => ({ ...f, stage: stageForMonths(f.months) }));
 const mergeLibrary = customs => {
   const merged = FOOD_LIBRARY.map(f => {
-    const edit = customs.find(c => c.name === f.name);
+    // 新版用 baseName 识别内置条目，因此中文改名后也不会复制出第二条。
+    // 同时兼容旧版按 name 保存的编辑数据。
+    const aliases = aliasesForBase(f.name);
+    const edit = customs.find(c => c.baseName === f.name || (!c.custom && !c.baseName && (c.name === f.name || aliases.includes(c.name))));
+    if (edit?.hidden) return null;
     return edit
-      ? { ...f, ...edit, stage: stageForMonths(edit.months ?? f.months), edited: true }
-      : { ...f, stage: stageForMonths(f.months) };
-  });
+      ? { ...f, ...edit, baseName: f.name, custom: false, stage: stageForMonths(edit.months ?? f.months), edited: true }
+      : { ...f, baseName: f.name, custom: false, stage: stageForMonths(f.months) };
+  }).filter(Boolean);
   customs
-    .filter(c => !FOOD_LIBRARY.some(f => f.name === c.name))
+    .filter(c => c.custom || (!c.baseName && !FOOD_LIBRARY.some(f => f.name === c.name) && !LEGACY_BASE_NAMES[c.name]))
+    .filter(c => !c.hidden)
     .forEach(c => merged.push({ emoji: "🍽️", cat: "其他", ...c, stage: stageForMonths(c.months ?? 6), custom: true }));
   merged.sort((a, b) => (a.months ?? 6) - (b.months ?? 6));
   mergedLibrary = merged;
@@ -213,6 +230,7 @@ function Choices({ title, value, setValue, items }) {
 function AddMealDialog({ open, prefill, onOpenChange, onSave }) {
   const [food, setFood] = useState("");
   const [amount, setAmount] = useState(30);
+  const [date, setDate] = useState(todayKey);
   const [time, setTime] = useState(nowHHMM);
   const [reaction, setReaction] = useState("很喜欢");
   const [body, setBody] = useState("无异常");
@@ -220,6 +238,7 @@ function AddMealDialog({ open, prefill, onOpenChange, onSave }) {
     if (open) {
       setFood(prefill?.food || "");
       setAmount(prefill?.amount || 30);
+      setDate(prefill?.date || todayKey());
       setTime(nowHHMM());
       setReaction("很喜欢");
       setBody("无异常");
@@ -238,7 +257,7 @@ function AddMealDialog({ open, prefill, onOpenChange, onSave }) {
             </div>
             <Dialog.Close className="icon-button"><X size={20} /></Dialog.Close>
           </div>
-          <form onSubmit={e => { e.preventDefault(); if (food.trim()) onSave({ food: food.trim(), amount_grams: Number(amount) || 0, time, reaction, note: body }); }}>
+          <form onSubmit={e => { e.preventDefault(); if (food.trim()) onSave({ food: food.trim(), amount_grams: Number(amount) || 0, date, time, reaction, note: body }); }}>
             <label>吃了什么
               <input list="food-options" value={food} onChange={e => setFood(e.target.value)} placeholder="选择或输入食物名" required />
               <datalist id="food-options">
@@ -246,9 +265,10 @@ function AddMealDialog({ open, prefill, onOpenChange, onSave }) {
               </datalist>
             </label>
             <div className="form-grid">
-              <label>分量（克）<input type="number" min="1" max="1000" value={amount} onChange={e => setAmount(e.target.value)} /></label>
+              <label>日期（可补记过去）<input type="date" value={date} max={todayKey()} onChange={e => setDate(e.target.value)} /></label>
               <label>时间<input type="time" value={time} onChange={e => setTime(e.target.value)} /></label>
             </div>
+            <label>分量（克）<input type="number" min="1" max="1000" value={amount} onChange={e => setAmount(e.target.value)} /></label>
             <Choices title="喜欢程度" value={reaction} setValue={setReaction} items={["很喜欢", "愿意尝试", "一般般", "不太喜欢"]} />
             <Choices title="身体反应" value={body} setValue={setBody} items={["无异常", "皮肤反应", "消化不适", "需要观察"]} />
             <button className="save-button" type="submit"><Check size={19} />保存这餐</button>
@@ -292,7 +312,7 @@ function MealDetailDialog({ meal, onClose, onDelete }) {
   );
 }
 
-function CalendarDialog({ open, onOpenChange, meals }) {
+function CalendarDialog({ open, onOpenChange, meals, onAddFor }) {
   const [month, setMonth] = useState(() => { const n = new Date(); return new Date(n.getFullYear(), n.getMonth(), 1); });
   const [selected, setSelected] = useState(todayKey());
   useEffect(() => { if (open) { const n = new Date(); setMonth(new Date(n.getFullYear(), n.getMonth(), 1)); setSelected(todayKey()); } }, [open]);
@@ -339,7 +359,14 @@ function CalendarDialog({ open, onOpenChange, meals }) {
             )}
           </div>
           <div className="calendar-day-list">
-            <h3>{fmtDateCN(selected)}</h3>
+            <div className="calendar-day-head">
+              <h3>{fmtDateCN(selected)}</h3>
+              {selected <= todayKey() && (
+                <button className="calendar-add-button" onClick={() => { onOpenChange(false); onAddFor(selected); }}>
+                  <Plus size={15} />补记这一天
+                </button>
+              )}
+            </div>
             {dayMeals.length === 0
               ? <p className="empty-hint">这一天没有记录</p>
               : dayMeals.map(m => (
@@ -389,6 +416,7 @@ function FoodEditDialog({ editing, onClose, onSave, onDelete }) {
   const isEdit = editing?.mode === "edit";
   const food = editing?.food;
   const [name, setName] = useState("");
+  const [fr, setFr] = useState("");
   const [emoji, setEmoji] = useState("🍽️");
   const [cat, setCat] = useState("其他");
   const [monthsFrom, setMonthsFrom] = useState(6);
@@ -399,6 +427,7 @@ function FoodEditDialog({ editing, onClose, onSave, onDelete }) {
   useEffect(() => {
     if (!editing) return;
     setName(food?.name || "");
+    setFr(food?.fr || "");
     setEmoji(food?.emoji || "🍽️");
     setCat(food?.cat || "其他");
     setMonthsFrom(food?.months ?? 6);
@@ -430,7 +459,7 @@ function FoodEditDialog({ editing, onClose, onSave, onDelete }) {
           <form onSubmit={e => {
             e.preventDefault();
             if (!name.trim()) return;
-            onSave({ name: name.trim(), emoji: emoji.trim() || "🍽️", cat, months: Number(monthsFrom) || 6, amount: amount.trim() || "适量", tip: tip.trim(), photo }, food);
+            onSave({ name: name.trim(), fr: fr.trim(), emoji: emoji.trim() || "🍽️", cat, months: Number(monthsFrom) || 6, amount: amount.trim() || "适量", tip: tip.trim(), photo }, food);
           }}>
             <div className="photo-picker">
               <label aria-label="上传食物照片">
@@ -448,7 +477,10 @@ function FoodEditDialog({ editing, onClose, onSave, onDelete }) {
               </div>
             </div>
             <label>食物名称
-              <input value={name} onChange={e => setName(e.target.value)} placeholder="比如：小米粥" required disabled={isEdit && !food?.custom} />
+              <input value={name} onChange={e => setName(e.target.value)} placeholder="比如：小米粥" required />
+            </label>
+            <label>法语名称
+              <input value={fr} onChange={e => setFr(e.target.value)} placeholder="比如：bouillie de millet" />
             </label>
             <div className="form-grid">
               <label>图标（emoji）<input value={emoji} onChange={e => setEmoji(e.target.value)} maxLength="4" /></label>
@@ -466,9 +498,15 @@ function FoodEditDialog({ editing, onClose, onSave, onDelete }) {
             <label>建议分量<input value={amount} onChange={e => setAmount(e.target.value)} placeholder="比如：15–30克" /></label>
             <label>小贴士<input value={tip} onChange={e => setTip(e.target.value)} placeholder="做法或注意事项（可选）" /></label>
             <button className="save-button" type="submit" disabled={busy}><Check size={19} />保存</button>
-            {isEdit && (food?.custom
-              ? <button type="button" className="danger-button slim" onClick={() => { if (confirm(`删除「${food.name}」？`)) onDelete(food); }}><Trash2 size={16} />删除这个食物</button>
-              : food?.edited && <button type="button" className="danger-button slim" onClick={() => onDelete(food)}>恢复默认设置</button>)}
+            {isEdit && <>
+              <button type="button" className="danger-button slim" onClick={() => {
+                const message = food?.custom ? `删除「${food.name}」？` : `从食物库隐藏「${food.name}」？以后仍可通过“恢复内置食物”找回来。`;
+                if (confirm(message)) onDelete(food, "delete");
+              }}><Trash2 size={16} />{food?.custom ? "删除这个食物" : "从食物库隐藏"}</button>
+              {!food?.custom && food?.edited && (
+                <button type="button" className="secondary-button slim" onClick={() => onDelete(food, "restore")}>恢复默认名称和设置</button>
+              )}
+            </>}
           </form>
         </Dialog.Content>
       </Dialog.Portal>
@@ -477,7 +515,7 @@ function FoodEditDialog({ editing, onClose, onSave, onDelete }) {
 }
 
 /* ---------- 页面 ---------- */
-function LibraryView({ library, months, tried, onRecord, onPlan, onEdit, onAdd }) {
+function LibraryView({ library, months, tried, onRecord, onPlan, onEdit, onAdd, hiddenCount, onRestoreHidden }) {
   const [query, setQuery] = useState("");
   const [cat, setCat] = useState("全部");
   const stages = useMemo(() => {
@@ -501,6 +539,9 @@ function LibraryView({ library, months, tried, onRecord, onPlan, onEdit, onAdd }
         <input className="search-input" placeholder="搜索食物（中文或法语）…" value={query} onChange={e => setQuery(e.target.value)} />
         <button className="add-food-button" onClick={onAdd}><Plus size={17} />添加食物</button>
       </div>
+      {hiddenCount > 0 && (
+        <button className="restore-hidden-button" onClick={onRestoreHidden}>恢复隐藏的内置食物（{hiddenCount}）</button>
+      )}
       <div className="cat-chips">
         {["全部", ...FOOD_CATS].map(c => (
           <button key={c} className={cat === c ? "selected" : ""} onClick={() => setCat(c)}>{c}</button>
@@ -565,7 +606,7 @@ function PlanView({ plan, onRecord, onRemove }) {
   );
 }
 
-function BigCalendar({ meals, onOpenMeal }) {
+function BigCalendar({ meals, onOpenMeal, onAddFor }) {
   const [month, setMonth] = useState(() => { const n = new Date(); return new Date(n.getFullYear(), n.getMonth(), 1); });
   const [selected, setSelected] = useState(todayKey());
   const byDay = useMemo(() => {
@@ -609,7 +650,10 @@ function BigCalendar({ meals, onOpenMeal }) {
         })}
       </div>
       <div className="calendar-day-list">
-        <h3>{fmtDateCN(selected)} · {dayMeals.length} 餐{dayMeals.length > 0 && ` · 共 ${dayMeals.reduce((s, m) => s + Number(m.amount_grams || 0), 0)} 克`}</h3>
+        <div className="day-list-head">
+          <h3>{fmtDateCN(selected)} · {dayMeals.length} 餐{dayMeals.length > 0 && ` · 共 ${dayMeals.reduce((s, m) => s + Number(m.amount_grams || 0), 0)} 克`}</h3>
+          {selected <= todayKey() && <button className="add-past-button" onClick={() => onAddFor(selected)}><Plus size={13} />补记一餐</button>}
+        </div>
         {dayMeals.length === 0
           ? <p className="empty-hint">这一天没有记录</p>
           : dayMeals.map(m => (
@@ -626,7 +670,7 @@ function BigCalendar({ meals, onOpenMeal }) {
   );
 }
 
-function GrowthView({ meals, onOpenMeal }) {
+function GrowthView({ meals, onOpenMeal, onAddFor }) {
   const stats = useMemo(() => {
     const days = new Set(meals.map(m => dayKeyOf(m.eaten_at)));
     const foods = new Map();
@@ -650,7 +694,7 @@ function GrowthView({ meals, onOpenMeal }) {
         </section>
       )}
       <h2 className="history-title">每日饮食日历</h2>
-      <BigCalendar meals={meals} onOpenMeal={onOpenMeal} />
+      <BigCalendar meals={meals} onOpenMeal={onOpenMeal} onAddFor={onAddFor} />
     </div>
   );
 }
@@ -705,21 +749,39 @@ function App() {
   };
 
   const saveFood = (data, original) => {
-    // 内置食物不允许改名（编辑时输入框已禁用）；自定义食物可以改名
-    const finalName = original && !original.custom ? original.name : data.name;
-    const oldName = original ? original.name : finalName;
-    if (finalName !== oldName || !original) {
-      if (mergedLibrary.some(f => f.name === finalName)) { setNotice(`「${finalName}」已经在食物库里了`); return; }
-    }
-    const rest = customFoods.filter(c => c.name !== oldName);
-    saveCustomFoods([...rest, { ...data, name: finalName }]);
+    const finalName = data.name.trim();
+    const baseName = original && !original.custom ? (original.baseName || original.name) : null;
+    const duplicate = mergedLibrary.some(f => f.name === finalName && (!baseName || f.baseName !== baseName));
+    if (duplicate) { setNotice(`「${finalName}」已经在食物库里了`); return; }
+    const aliases = baseName ? aliasesForBase(baseName) : [];
+    const rest = customFoods.filter(c => baseName
+      ? c.baseName !== baseName && !(c.name === baseName && !c.custom) && !(aliases.includes(c.name) && !c.custom)
+      : c.name !== original?.name);
+    const saved = baseName
+      ? { ...data, name: finalName, baseName, custom: false }
+      : { ...data, name: finalName, custom: true };
+    saveCustomFoods([...rest, saved]);
     setEditingFood(null);
     setNotice(original ? `「${finalName}」已更新` : `「${finalName}」已加入食物库`);
   };
-  const deleteFood = food => {
-    saveCustomFoods(customFoods.filter(c => c.name !== food.name));
+  const deleteFood = (food, action = "delete") => {
+    const baseName = food.baseName || food.name;
+    const aliases = aliasesForBase(baseName);
+    const rest = customFoods.filter(c => food.custom
+      ? !(c.custom && c.name === food.name)
+      : c.baseName !== baseName && !(c.name === baseName && !c.custom) && !(aliases.includes(c.name) && !c.custom));
+    if (!food.custom && action === "delete") {
+      saveCustomFoods([...rest, { baseName, name: food.name, hidden: true, custom: false }]);
+    } else {
+      saveCustomFoods(rest);
+    }
     setEditingFood(null);
-    setNotice(food.custom ? `已删除「${food.name}」` : `「${food.name}」已恢复默认`);
+    setNotice(food.custom ? `已删除「${food.name}」` : action === "restore" ? `「${baseName}」已恢复默认` : `已隐藏「${food.name}」`);
+  };
+  const restoreHiddenFoods = () => {
+    const count = customFoods.filter(c => c.hidden).length;
+    saveCustomFoods(customFoods.filter(c => !c.hidden));
+    setNotice(`已恢复 ${count} 个内置食物`);
   };
 
   /* --- 云同步 --- */
@@ -762,7 +824,7 @@ function App() {
   const addMeal = async record => {
     const local = {
       food: record.food, amount_grams: record.amount_grams, reaction: record.reaction, note: record.note,
-      id: `local-${Date.now()}`, eaten_at: isoFor(todayKey(), record.time),
+      id: `local-${Date.now()}`, eaten_at: isoFor(record.date || todayKey(), record.time),
     };
     saveMeals([...meals, local]);
     setSheetOpen(false);
@@ -896,9 +958,9 @@ function App() {
               <button onClick={() => setInfo(allergyInfo)}>了解更多 <ChevronRight /></button>
             </section>
           </>}
-          {tab === "library" && <LibraryView library={library} months={months} tried={tried} onRecord={openRecord} onPlan={addToPlan} onEdit={f => setEditingFood({ mode: "edit", food: f })} onAdd={() => setEditingFood({ mode: "add" })} />}
+          {tab === "library" && <LibraryView library={library} months={months} tried={tried} onRecord={openRecord} onPlan={addToPlan} onEdit={f => setEditingFood({ mode: "edit", food: f })} onAdd={() => setEditingFood({ mode: "add" })} hiddenCount={customFoods.filter(c => c.hidden).length} onRestoreHidden={restoreHiddenFoods} />}
           {tab === "plan" && <PlanView plan={plan} onRecord={openRecord} onRemove={item => savePlan(plan.filter(p => p.id !== item.id))} />}
-          {tab === "growth" && <GrowthView meals={meals} onOpenMeal={setDetailMeal} />}
+          {tab === "growth" && <GrowthView meals={meals} onOpenMeal={setDetailMeal} onAddFor={d => { setPrefill({ date: d }); setSheetOpen(true); }} />}
         </main>
         <nav className="bottom-nav">
           {[["today", CalendarDays, "今天"], ["library", Library, "食物库"], ["plan", ClipboardList, "计划"], ["growth", Sprout, "成长"]].map(([key, Icon, label]) => (
@@ -925,7 +987,7 @@ function App() {
       </aside>
       <AddMealDialog open={sheetOpen} prefill={prefill} onOpenChange={setSheetOpen} onSave={addMeal} />
       <AuthDialog open={authOpen} onOpenChange={setAuthOpen} onSignedIn={() => { setAuthOpen(false); sync(); setNotice("登录成功，正在同步记录"); }} />
-      <CalendarDialog open={calendarOpen} onOpenChange={setCalendarOpen} meals={meals} />
+      <CalendarDialog open={calendarOpen} onOpenChange={setCalendarOpen} meals={meals} onAddFor={d => { setPrefill({ date: d }); setSheetOpen(true); }} />
       <MealDetailDialog meal={detailMeal} onClose={() => setDetailMeal(null)} onDelete={deleteMeal} />
       <FoodEditDialog editing={editingFood} onClose={() => setEditingFood(null)} onSave={saveFood} onDelete={deleteFood} />
       <InfoDialog info={info} onClose={() => setInfo(null)} />

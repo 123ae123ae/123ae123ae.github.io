@@ -77,6 +77,9 @@
 .day-cell i{position:absolute;left:50%;bottom:4px;transform:translateX(-50%);width:4px;height:4px;border-radius:50%;background:var(--apricot)}
 .calendar-day-list{margin-top:14px;border-top:1px solid var(--line);padding-top:12px}
 .calendar-day-list h3{font-size:12px;margin:0 0 9px;color:var(--muted)}
+.calendar-day-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:9px}
+.calendar-day-head h3{margin:0}
+.calendar-add-button{border:0;border-radius:11px;background:var(--sage-soft);color:var(--sage-dark);padding:8px 11px;font-size:11px;font-weight:650;display:flex;align-items:center;gap:5px;cursor:pointer}
 
 /* 详情 / 说明弹窗 */
 .detail-body{display:grid;grid-template-columns:72px 1fr;gap:16px;align-items:center;margin:18px 0}
@@ -89,6 +92,7 @@
 /* ---------- 食物编辑 ---------- */
 .lib-toolbar{display:grid;grid-template-columns:1fr auto;gap:9px;margin-bottom:18px}
 .lib-toolbar .search-input{margin-bottom:0}
+.restore-hidden-button{width:100%;margin:-8px 0 16px;border:1px dashed #b9c5b4;border-radius:12px;background:transparent;color:var(--sage-dark);padding:9px 12px;font-size:11px;cursor:pointer}
 .add-food-button{border:0;border-radius:12px;background:var(--sage);color:#fff;font-size:12px;font-weight:600;padding:0 13px;display:flex;align-items:center;gap:5px;cursor:pointer;white-space:nowrap}
 .custom-tag{font-style:normal;font-size:9px;padding:2px 6px;border-radius:8px;font-weight:500;background:#eef}
 .custom-tag{background:#ece9f7;color:#7a6bb5}
@@ -103,6 +107,7 @@
 .photo-picker p{margin:0;font-size:11px;color:var(--muted)}
 .text-link{border:0;background:transparent;color:#c05f3f;font-size:11px;padding:0;margin-top:5px;cursor:pointer;text-decoration:underline}
 .danger-button.slim{height:40px;margin-top:10px;font-size:12px}
+.secondary-button.slim{width:100%;height:40px;margin-top:8px;border:1px solid var(--line);border-radius:13px;background:#fff;color:var(--muted);font-size:12px;font-weight:600;cursor:pointer}
 .meal-sheet input:disabled{background:#f3f1ed;color:var(--muted)}
 
 /* ---------- 大日历 ---------- */
