@@ -85,3 +85,36 @@
 .detail-body li span{color:var(--muted)}
 .danger-button{width:100%;height:46px;border:1px solid #f1d5c9;border-radius:13px;background:#fff7f2;color:#c05f3f;font-weight:600;display:flex;align-items:center;justify-content:center;gap:7px;cursor:pointer}
 .info-body p{font-size:12px;line-height:1.8;color:var(--ink);margin:0 0 10px}
+
+/* ---------- 食物编辑 ---------- */
+.lib-toolbar{display:grid;grid-template-columns:1fr auto;gap:9px;margin-bottom:18px}
+.lib-toolbar .search-input{margin-bottom:0}
+.add-food-button{border:0;border-radius:12px;background:var(--sage);color:#fff;font-size:12px;font-weight:600;padding:0 13px;display:flex;align-items:center;gap:5px;cursor:pointer;white-space:nowrap}
+.custom-tag{font-style:normal;font-size:9px;padding:2px 6px;border-radius:8px;font-weight:500;background:#eef}
+.custom-tag{background:#ece9f7;color:#7a6bb5}
+.lib-actions button.ghost svg{width:11px}
+.food-edit-sheet{max-height:92dvh;overflow-y:auto}
+.photo-picker{display:grid;grid-template-columns:84px 1fr;gap:14px;align-items:center;margin-top:14px}
+.photo-picker label{position:relative;width:84px;height:84px;cursor:pointer;display:block;margin-top:0}
+.photo-picker label img{width:84px;height:84px;border-radius:50%;object-fit:cover;border:1px solid var(--line)}
+.photo-placeholder{width:84px;height:84px;border-radius:50%;border:2px dashed #cfccc5;display:grid;place-items:center;font-size:34px;background:#fff}
+.photo-picker label b{position:absolute;right:0;bottom:2px;width:26px;height:26px;border-radius:50%;background:var(--sage);color:#fff;border:2px solid var(--cream);display:grid;place-items:center}
+.photo-picker input{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none}
+.photo-picker p{margin:0;font-size:11px;color:var(--muted)}
+.text-link{border:0;background:transparent;color:#c05f3f;font-size:11px;padding:0;margin-top:5px;cursor:pointer;text-decoration:underline}
+.danger-button.slim{height:40px;margin-top:10px;font-size:12px}
+.meal-sheet input:disabled{background:#f3f1ed;color:var(--muted)}
+
+/* ---------- 大日历 ---------- */
+.big-cal{border:1px solid var(--line);border-radius:17px;padding:14px;background:#fff}
+.big-cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;text-align:center;margin-top:4px}
+.big-day{border:1px solid var(--line);border-radius:12px;background:var(--cream);min-height:58px;padding:5px 2px 4px;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:3px}
+.big-day b{font-size:12px;font-weight:600;line-height:1}
+.big-day.today b{color:var(--sage)}
+.big-day.today{border-color:var(--sage)}
+.big-day.selected{background:var(--sage-soft);border-color:var(--sage);box-shadow:0 0 0 1px var(--sage) inset}
+.day-foods{display:flex;flex-wrap:wrap;justify-content:center;gap:1px;max-width:100%}
+.day-foods .food-photo,.day-foods .food-emoji{border:1px solid #fff}
+.day-foods .food-emoji{background:#f3f1ed}
+.day-foods i{font-style:normal;font-size:8px;color:var(--muted);align-self:center}
+.big-cal .calendar-day-list{border-top:1px solid var(--line);margin-top:12px;padding-top:12px}
