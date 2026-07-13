@@ -938,13 +938,31 @@ function AuthDialog({ open, onOpenChange, onSignedIn }) {
     e.preventDefault();
     setMessage("正在登录…");
     const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-    if (error) setMessage("登录失败，请检查邮箱和密码");
-    else { setMessage(""); onSignedIn(data.user); }
+    if (error) {
+      const msg = error.message || "";
+      if (/email not confirmed/i.test(msg)) setMessage("邮箱还没验证，请先打开邮箱里的确认链接");
+      else if (/invalid login/i.test(msg)) setMessage("邮箱或密码不对，再检查一下");
+      else setMessage(`登录失败：${msg}`);
+    } else { setMessage(""); onSignedIn(data.user); }
   };
   const signup = async () => {
+    if (!/.+@.+\..+/.test(email)) { setMessage("请先填写正确的邮箱地址"); return; }
+    if (password.length < 6) { setMessage("密码至少要 6 位"); return; }
     setMessage("正在创建家庭账号…");
-    const { error } = await supabase.auth.signUp({ email, password });
-    setMessage(error ? error.message : "请打开邮箱中的确认链接，然后回来登录。");
+    const { data, error } = await supabase.auth.signUp({ email, password });
+    if (error) {
+      const msg = error.message || "";
+      if (/already registered|already been registered/i.test(msg)) setMessage("这个邮箱已经注册过了，直接登录即可");
+      else if (/anonymous/i.test(msg)) setMessage("请先填写邮箱和密码再注册");
+      else if (/signups? not allowed|disabled/i.test(msg)) setMessage("注册暂时未开放，请联系管理员");
+      else if (/rate limit|too many/i.test(msg)) setMessage("操作太频繁了，请过几分钟再试");
+      else setMessage(`注册失败：${msg}`);
+      return;
+    }
+    // 有些配置下重复注册不报错，但返回的用户没有身份信息
+    if (data?.user && data.user.identities?.length === 0) { setMessage("这个邮箱已经注册过了，直接登录即可"); return; }
+    setMessage(data?.session ? "注册成功，已自动登录" : "注册成功！请打开邮箱里的确认链接，然后回来登录。");
+    if (data?.session) onSignedIn(data.session.user);
   };
   return (
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
