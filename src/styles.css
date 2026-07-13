@@ -118,3 +118,10 @@
 .day-foods .food-emoji{background:#f3f1ed}
 .day-foods i{font-style:normal;font-size:8px;color:var(--muted);align-self:center}
 .big-cal .calendar-day-list{border-top:1px solid var(--line);margin-top:12px;padding-top:12px}
+
+/* ---------- 食物库分类与法语名 ---------- */
+.cat-chips{display:flex;gap:7px;overflow-x:auto;scrollbar-width:none;margin-bottom:6px}
+.cat-chips button{white-space:nowrap;height:34px;border:1px solid var(--line);border-radius:17px;background:#fff;padding:0 14px;font-size:12px;cursor:pointer;color:var(--muted)}
+.cat-chips button.selected{border-color:var(--sage);background:var(--sage);color:#fff;font-weight:600}
+.fr-name{font-style:normal;font-size:10px;color:#a5a19a;font-weight:400}
+.try-tag{font-style:normal;font-size:9px;padding:2px 6px;border-radius:8px;font-weight:500;background:#fdf3e0;color:#c98a2b}

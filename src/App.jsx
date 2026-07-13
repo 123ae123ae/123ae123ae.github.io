@@ -49,50 +49,28 @@ const ageMonths = birth => {
   return Math.max(months, 0);
 };
 
-/* ---------- 食物库 ---------- */
-const FOOD_LIBRARY = [
-  { name: "婴儿米糊", emoji: "🍚", months: 4, stage: "4–6个月", amount: "10–30克", tip: "最常见的第一口辅食，铁强化米糊更好。", asset: "/assets/rice-cereal.png" },
-  { name: "苹果泥", emoji: "🍎", months: 4, stage: "4–6个月", amount: "15–30克", tip: "蒸熟后打泥，口感温和，宝宝接受度高。", asset: "/assets/apple-puree.png" },
-  { name: "香蕉泥", emoji: "🍌", months: 4, stage: "4–6个月", amount: "15–30克", tip: "无需加热，压成泥即可，注意选熟透的香蕉。" },
-  { name: "南瓜泥", emoji: "🎃", months: 5, stage: "4–6个月", amount: "10–15克", tip: "细腻香甜，富含 β-胡萝卜素。", asset: "/assets/pumpkin.png" },
-  { name: "胡萝卜泥", emoji: "🥕", months: 5, stage: "4–6个月", amount: "10–20克", tip: "蒸软后打泥，加少量水调稀更易吞咽。" },
-  { name: "土豆泥", emoji: "🥔", months: 5, stage: "4–6个月", amount: "15–30克", tip: "口感绵软，可以和米糊混合喂。" },
-  { name: "梨泥", emoji: "🍐", months: 5, stage: "4–6个月", amount: "15–30克", tip: "水分足，便秘时可以适量多吃一点。" },
-  { name: "西葫芦泥", emoji: "🥒", months: 6, stage: "6–8个月", amount: "15–30克", tip: "清淡不易过敏，适合蔬菜入门。" },
-  { name: "蛋黄泥", emoji: "🥚", months: 6, stage: "6–8个月", amount: "1/4–1个", tip: "从四分之一个开始，观察 3 天再加量。" },
-  { name: "牛油果泥", emoji: "🥑", months: 6, stage: "6–8个月", amount: "15–30克", tip: "健康脂肪丰富，直接压泥即可。" },
-  { name: "西兰花泥", emoji: "🥦", months: 6, stage: "6–8个月", amount: "15–30克", tip: "只取花冠部分，蒸软打泥。" },
-  { name: "红薯泥", emoji: "🍠", months: 6, stage: "6–8个月", amount: "15–30克", tip: "自带甜味，宝宝普遍很喜欢。" },
-  { name: "燕麦糊", emoji: "🥣", months: 6, stage: "6–8个月", amount: "20–40克", tip: "选婴儿燕麦片，煮至软烂。" },
-  { name: "鸡肉泥", emoji: "🍗", months: 7, stage: "6–8个月", amount: "10–20克", tip: "第一口肉类推荐，蒸熟后加水打成细泥。" },
-  { name: "猪肝泥", emoji: "🍖", months: 7, stage: "6–8个月", amount: "5–15克", tip: "补铁好帮手，每周 1–2 次即可。" },
-  { name: "豌豆泥", emoji: "🫛", months: 7, stage: "6–8个月", amount: "15–30克", tip: "过筛去皮，口感更细腻。" },
-  { name: "三文鱼泥", emoji: "🐟", months: 8, stage: "8–12个月", amount: "10–20克", tip: "富含 DHA，务必挑净鱼刺。" },
-  { name: "豆腐碎", emoji: "🍲", months: 8, stage: "8–12个月", amount: "20–30克", tip: "嫩豆腐焯水后压碎，优质植物蛋白。" },
-  { name: "番茄碎", emoji: "🍅", months: 8, stage: "8–12个月", amount: "15–30克", tip: "去皮去籽切碎，可以拌在面里。" },
-  { name: "软烂面条", emoji: "🍜", months: 8, stage: "8–12个月", amount: "30–50克", tip: "剪成小段煮软，练习咀嚼。" },
-  { name: "蓝莓碎", emoji: "🫐", months: 9, stage: "8–12个月", amount: "15–30克", tip: "对半切开或压扁，避免整颗喂。" },
-  { name: "酸奶", emoji: "🥛", months: 9, stage: "8–12个月", amount: "30–50克", tip: "选无糖全脂原味酸奶。" },
-  { name: "软米饭", emoji: "🍙", months: 10, stage: "8–12个月", amount: "30–60克", tip: "煮得比大人的软一些，练习自己抓着吃。" },
-  { name: "手指食物", emoji: "🥖", months: 10, stage: "8–12个月", amount: "适量", tip: "蒸软的胡萝卜条、香蕉块，锻炼抓握。" },
-];
+/* ---------- 食物库（数据来自法国辅食添加对照表，见 foodLibrary.js） ---------- */
+import { FOOD_LIBRARY, FOOD_CATS } from "./foodLibrary.js";
 const stageForMonths = m => m >= 12 ? "12个月+" : m >= 8 ? "8–12个月" : m >= 6 ? "6–8个月" : "4–6个月";
 // 内置食物库 + 用户自定义/编辑过的食物，合并后的结果（App 渲染时刷新）
-let mergedLibrary = FOOD_LIBRARY;
+let mergedLibrary = FOOD_LIBRARY.map(f => ({ ...f, stage: stageForMonths(f.months) }));
 const mergeLibrary = customs => {
   const merged = FOOD_LIBRARY.map(f => {
     const edit = customs.find(c => c.name === f.name);
-    return edit ? { ...f, ...edit, stage: stageForMonths(edit.months ?? f.months), edited: true } : f;
+    return edit
+      ? { ...f, ...edit, stage: stageForMonths(edit.months ?? f.months), edited: true }
+      : { ...f, stage: stageForMonths(f.months) };
   });
   customs
     .filter(c => !FOOD_LIBRARY.some(f => f.name === c.name))
-    .forEach(c => merged.push({ emoji: "🍽️", ...c, stage: stageForMonths(c.months ?? 6), custom: true }));
+    .forEach(c => merged.push({ emoji: "🍽️", cat: "其他", ...c, stage: stageForMonths(c.months ?? 6), custom: true }));
   merged.sort((a, b) => (a.months ?? 6) - (b.months ?? 6));
   mergedLibrary = merged;
   return merged;
 };
 const libFor = food => mergedLibrary.find(f => f.name === food)
-  || mergedLibrary.find(f => food.includes(f.name.replace("泥", "")) || f.name.includes(food));
+  || mergedLibrary.find(f => food.includes(f.name) || f.name.includes(food.replace(/[泥糊碎段条块]/g, "")))
+  || (food.length >= 2 ? mergedLibrary.find(f => f.name.startsWith(food.slice(0, 2))) : null);
 const emojiFor = food => libFor(food)?.emoji || "🥄";
 
 /* ---------- 头像 ---------- */
@@ -233,14 +211,14 @@ function Choices({ title, value, setValue, items }) {
 }
 
 function AddMealDialog({ open, prefill, onOpenChange, onSave }) {
-  const [food, setFood] = useState("苹果泥");
+  const [food, setFood] = useState("");
   const [amount, setAmount] = useState(30);
   const [time, setTime] = useState(nowHHMM);
   const [reaction, setReaction] = useState("很喜欢");
   const [body, setBody] = useState("无异常");
   useEffect(() => {
     if (open) {
-      setFood(prefill?.food || "苹果泥");
+      setFood(prefill?.food || "");
       setAmount(prefill?.amount || 30);
       setTime(nowHHMM());
       setReaction("很喜欢");
@@ -412,6 +390,7 @@ function FoodEditDialog({ editing, onClose, onSave, onDelete }) {
   const food = editing?.food;
   const [name, setName] = useState("");
   const [emoji, setEmoji] = useState("🍽️");
+  const [cat, setCat] = useState("其他");
   const [monthsFrom, setMonthsFrom] = useState(6);
   const [amount, setAmount] = useState("15–30克");
   const [tip, setTip] = useState("");
@@ -421,6 +400,7 @@ function FoodEditDialog({ editing, onClose, onSave, onDelete }) {
     if (!editing) return;
     setName(food?.name || "");
     setEmoji(food?.emoji || "🍽️");
+    setCat(food?.cat || "其他");
     setMonthsFrom(food?.months ?? 6);
     setAmount(food?.amount || "15–30克");
     setTip(food?.tip || "");
@@ -450,7 +430,7 @@ function FoodEditDialog({ editing, onClose, onSave, onDelete }) {
           <form onSubmit={e => {
             e.preventDefault();
             if (!name.trim()) return;
-            onSave({ name: name.trim(), emoji: emoji.trim() || "🍽️", months: Number(monthsFrom) || 6, amount: amount.trim() || "适量", tip: tip.trim(), photo }, food);
+            onSave({ name: name.trim(), emoji: emoji.trim() || "🍽️", cat, months: Number(monthsFrom) || 6, amount: amount.trim() || "适量", tip: tip.trim(), photo }, food);
           }}>
             <div className="photo-picker">
               <label aria-label="上传食物照片">
@@ -478,6 +458,11 @@ function FoodEditDialog({ editing, onClose, onSave, onDelete }) {
                 </select>
               </label>
             </div>
+            <label>分类
+              <select value={cat} onChange={e => setCat(e.target.value)}>
+                {FOOD_CATS.map(c => <option key={c} value={c}>{c}</option>)}
+              </select>
+            </label>
             <label>建议分量<input value={amount} onChange={e => setAmount(e.target.value)} placeholder="比如：15–30克" /></label>
             <label>小贴士<input value={tip} onChange={e => setTip(e.target.value)} placeholder="做法或注意事项（可选）" /></label>
             <button className="save-button" type="submit" disabled={busy}><Check size={19} />保存</button>
@@ -494,8 +479,12 @@ function FoodEditDialog({ editing, onClose, onSave, onDelete }) {
 /* ---------- 页面 ---------- */
 function LibraryView({ library, months, tried, onRecord, onPlan, onEdit, onAdd }) {
   const [query, setQuery] = useState("");
+  const [cat, setCat] = useState("全部");
   const stages = useMemo(() => {
-    const filtered = library.filter(f => f.name.includes(query.trim()));
+    const q = query.trim().toLowerCase();
+    const filtered = library.filter(f =>
+      (cat === "全部" || (f.cat || "其他") === cat)
+      && (!q || f.name.toLowerCase().includes(q) || (f.fr || "").toLowerCase().includes(q)));
     const groups = [];
     filtered.forEach(f => {
       let g = groups.find(x => x.stage === f.stage);
@@ -503,33 +492,47 @@ function LibraryView({ library, months, tried, onRecord, onPlan, onEdit, onAdd }
       g.foods.push(f);
     });
     return groups;
-  }, [library, query]);
+  }, [library, query, cat]);
   return (
     <div className="page">
       <h1 className="page-title">食物库</h1>
-      <p className="page-sub">按月龄整理的常见辅食，Elnaz 现在 {months} 个月。</p>
+      <p className="page-sub">按法国辅食添加对照表整理，Elnaz 现在 {months} 个月。</p>
       <div className="lib-toolbar">
-        <input className="search-input" placeholder="搜索食物…" value={query} onChange={e => setQuery(e.target.value)} />
+        <input className="search-input" placeholder="搜索食物（中文或法语）…" value={query} onChange={e => setQuery(e.target.value)} />
         <button className="add-food-button" onClick={onAdd}><Plus size={17} />添加食物</button>
+      </div>
+      <div className="cat-chips">
+        {["全部", ...FOOD_CATS].map(c => (
+          <button key={c} className={cat === c ? "selected" : ""} onClick={() => setCat(c)}>{c}</button>
+        ))}
       </div>
       {stages.map(group => (
         <section key={group.stage} className="lib-stage">
           <h2>{group.stage}</h2>
-          {group.foods.map(f => (
-            <div className={`lib-row ${f.months > months ? "not-yet" : ""}`} key={f.name}>
-              <FoodPhoto food={f.name} size={46} />
-              <div>
-                <h3>{f.name} {tried.has(f.name) && <em className="tried-tag">已尝试</em>}{f.custom && <em className="custom-tag">自己加的</em>}{f.months > months && <em className="wait-tag">再等等</em>}</h3>
-                <p>{f.tip}</p>
-                <small>建议 {f.amount}</small>
+          {group.foods.map(f => {
+            const state = f.months <= months ? "ok" : f.tryMonths && f.tryMonths <= months ? "try" : "wait";
+            return (
+              <div className={`lib-row ${state === "wait" ? "not-yet" : ""}`} key={f.name}>
+                <FoodPhoto food={f.name} size={46} />
+                <div>
+                  <h3>
+                    {f.name} {f.fr && <i className="fr-name">{f.fr}</i>}
+                    {tried.has(f.name) && <em className="tried-tag">已尝试</em>}
+                    {f.custom && <em className="custom-tag">自己加的</em>}
+                    {state === "try" && <em className="try-tag">可少量尝试</em>}
+                    {state === "wait" && <em className="wait-tag">{f.months >= 24 ? `${Math.round(f.months / 12)}岁前不要` : "再等等"}</em>}
+                  </h3>
+                  <p>{f.tip}</p>
+                  <small>建议 {f.amount}{f.season ? ` · 应季 ${f.season}` : ""}</small>
+                </div>
+                <div className="lib-actions">
+                  <button onClick={() => onRecord(f)} aria-label={`记录${f.name}`}><Plus size={16} /></button>
+                  <button className="ghost" onClick={() => onPlan(f)}>计划</button>
+                  <button className="ghost" onClick={() => onEdit(f)} aria-label={`编辑${f.name}`}><Pencil size={12} /> 编辑</button>
+                </div>
               </div>
-              <div className="lib-actions">
-                <button onClick={() => onRecord(f)} aria-label={`记录${f.name}`}><Plus size={16} /></button>
-                <button className="ghost" onClick={() => onPlan(f)}>计划</button>
-                <button className="ghost" onClick={() => onEdit(f)} aria-label={`编辑${f.name}`}><Pencil size={12} /> 编辑</button>
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </section>
       ))}
       {stages.length === 0 && <p className="empty-hint">没有找到「{query}」，点上面的「添加食物」加进来吧。</p>}
