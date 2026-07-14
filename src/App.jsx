@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from "motion/react";
 import { createClient } from "@supabase/supabase-js";
 import {
   Activity, AlertTriangle, ArrowUp, Baby, CalendarDays, Camera, Check, ChevronDown, ChevronLeft, ChevronRight,
-  ClipboardList, Library, LogOut, Mail, Pencil, Plus, RefreshCw, ShieldCheck, Sparkles, Sprout, Trash2, X,
+  ClipboardList, ImagePlus, Library, LogOut, Mail, Pencil, Plus, RefreshCw, ShieldCheck, Sparkles, Sprout, Trash2, X,
 } from "lucide-react";
 
 const supabase = createClient("https://vqxzrydqnlpxyjafjdoh.supabase.co", "sb_publishable_Pn-dEaqu0oWYJ8eK8OgUAg_PPORfQFF");
@@ -159,6 +159,42 @@ const prepareFoodPhoto = file => new Promise((resolve, reject) => {
   reader.readAsDataURL(file);
 });
 
+// 餐食照片压缩成适合手机同步与离线保存的正方形 WebP。
+const prepareMealPhoto = file => new Promise((resolve, reject) => {
+  const img = new Image(), reader = new FileReader();
+  reader.onerror = reject;
+  reader.onload = () => {
+    img.onload = () => {
+      const size = 640, canvas = document.createElement("canvas");
+      canvas.width = size; canvas.height = size;
+      const ctx = canvas.getContext("2d"), side = Math.min(img.width, img.height);
+      ctx.drawImage(img, (img.width - side) / 2, (img.height - side) / 2, side, side, 0, 0, size, size);
+      resolve(canvas.toDataURL("image/webp", .74));
+    };
+    img.onerror = () => reject(new Error("图片处理失败"));
+    img.src = reader.result;
+  };
+  reader.readAsDataURL(file);
+});
+const dataUrlToBlob = async dataUrl => (await fetch(dataUrl)).blob();
+const blobToDataUrl = blob => new Promise((resolve, reject) => {
+  const reader = new FileReader();
+  reader.onerror = reject;
+  reader.onload = () => resolve(reader.result);
+  reader.readAsDataURL(blob);
+});
+const uploadMealPhoto = async (userId, meal) => {
+  if (!meal.photo_preview) return meal.photo_path || null;
+  const safeId = String(meal.id || `meal-${Date.now()}`).replace(/[^a-zA-Z0-9-]/g, "");
+  const path = meal.photo_path || `${userId}/${safeId}.webp`;
+  const blob = await dataUrlToBlob(meal.photo_preview);
+  const { error } = await supabase.storage.from("meal-photos").upload(path, blob, {
+    contentType: "image/webp", cacheControl: "3600", upsert: true,
+  });
+  if (error) throw error;
+  return path;
+};
+
 function Header({ online, status, signedIn, avatar, onAvatar, onCalendar, birth, onBirthChange, onSyncTap, onTopTap }) {
   const preciseAge = ageLabel(birth);
   return (
@@ -228,7 +264,9 @@ function MealTimeline({ meals, sortBy, onToggleSort, onOpenMeal, onViewAll }) {
           >
             <time>{fmtTime(meal.eaten_at)}</time>
             <span className="timeline-dot" />
-            <FoodPhoto food={meal.food} />
+            {meal.photo_preview
+              ? <div className="meal-photo-thumb"><img src={meal.photo_preview} alt={`${meal.food}的餐食照片`} /><Sparkles size={12} /></div>
+              : <FoodPhoto food={meal.food} />}
             <div className="meal-copy">
               <h3>{meal.food}</h3>
               <p><b>{meal.amount_grams}克</b><span>{meal.reaction}</span></p>
@@ -265,6 +303,8 @@ function AddMealDialog({ open, prefill, onOpenChange, onSave }) {
   const [body, setBody] = useState("无异常");
   const [source, setSource] = useState("自己制作");
   const [remarks, setRemarks] = useState("");
+  const [photo, setPhoto] = useState(null);
+  const [photoBusy, setPhotoBusy] = useState(false);
   useEffect(() => {
     if (open) {
       setFood(prefill?.food || "");
@@ -276,6 +316,8 @@ function AddMealDialog({ open, prefill, onOpenChange, onSave }) {
       setBody("无异常");
       setSource("自己制作");
       setRemarks("");
+      setPhoto(null);
+      setPhotoBusy(false);
     }
   }, [open, prefill]);
   const foodOptions = useMemo(() => {
@@ -283,6 +325,14 @@ function AddMealDialog({ open, prefill, onOpenChange, onSave }) {
     if (!query) return mergedLibrary.slice(0, 60);
     return mergedLibrary.filter(item => `${item.name} ${item.fr || ""}`.toLocaleLowerCase().includes(query)).slice(0, 60);
   }, [food, open]);
+  const chooseMealPhoto = async event => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    setPhotoBusy(true);
+    try { setPhoto(await prepareMealPhoto(file)); }
+    catch { alert("照片处理失败，请换一张照片重试"); }
+    finally { setPhotoBusy(false); event.target.value = ""; }
+  };
   return (
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
       <Dialog.Portal>
@@ -299,7 +349,7 @@ function AddMealDialog({ open, prefill, onOpenChange, onSave }) {
             </div>
             <Dialog.Close className="icon-button"><X size={20} /></Dialog.Close>
           </div>
-          <form onSubmit={e => { e.preventDefault(); if (food.trim()) onSave({ food: food.trim(), amount_grams: Number(amount) || 0, date, time, reaction, note: body, food_source: source, remarks: remarks.trim() }); }}>
+          <form onSubmit={e => { e.preventDefault(); if (food.trim() && !photoBusy) onSave({ food: food.trim(), amount_grams: Number(amount) || 0, date, time, reaction, note: body, food_source: source, remarks: remarks.trim(), photo_preview: photo }); }}>
             <div className="food-field">
               <label htmlFor="meal-food">吃了什么</label>
               <div className="food-input-wrap">
@@ -343,6 +393,16 @@ function AddMealDialog({ open, prefill, onOpenChange, onSave }) {
               <label>时间<input type="time" value={time} onChange={e => setTime(e.target.value)} /></label>
             </div>
             <label>分量（克）<input type="number" min="1" max="1000" value={amount} onChange={e => setAmount(e.target.value)} /></label>
+            <div className={`meal-photo-picker ${photo ? "has-photo" : ""}`}>
+              <div className="meal-photo-label"><span>餐食照片</span><small>可选</small></div>
+              <label>
+                <input type="file" accept="image/jpeg,image/png,image/webp" onChange={chooseMealPhoto} />
+                {photo
+                  ? <><img src={photo} alt="准备上传的餐食照片" /><span className="photo-change"><Camera size={17} />点击更换照片</span></>
+                  : <span className="meal-photo-empty"><i><ImagePlus size={24} /></i><b>{photoBusy ? "正在准备照片…" : "添加一张餐食照片"}</b><small>拍照或从手机相册选择</small></span>}
+              </label>
+              {photo && <button type="button" className="remove-meal-photo" onClick={() => setPhoto(null)}><X size={14} />移除</button>}
+            </div>
             <Choices title="喜欢程度" value={reaction} setValue={setReaction} items={["很喜欢", "愿意尝试", "一般般", "不太喜欢"]} />
             <Choices title="身体反应" value={body} setValue={setBody} items={["无异常", "皮肤反应", "消化不适", "需要观察"]} />
             <Choices title="食物来源" value={source} setValue={setSource} items={["自己制作", "超市购买", "其他"]} />
@@ -362,7 +422,7 @@ function AddMealDialog({ open, prefill, onOpenChange, onSave }) {
                 placeholder="例如：自己制作的苹果泥，加入少量温水；或购买自 Carrefour 的宝宝辅食。"
               />
             </label>
-            <button className="save-button" type="submit"><Check size={19} />保存这餐</button>
+            <button className="save-button" type="submit" disabled={photoBusy}><Check size={19} />{photoBusy ? "正在准备照片…" : "保存这餐"}</button>
           </form>
         </Dialog.Content>
       </Dialog.Portal>
@@ -385,8 +445,10 @@ function MealDetailDialog({ meal, onClose, onDelete }) {
               </div>
               <Dialog.Close className="icon-button"><X size={20} /></Dialog.Close>
             </div>
-            <div className="detail-body">
-              <FoodPhoto food={meal.food} size={72} />
+            <div className={`detail-body ${meal.photo_preview ? "has-meal-photo" : ""}`}>
+              {meal.photo_preview
+                ? <img className="meal-detail-photo" src={meal.photo_preview} alt={`${meal.food}的餐食照片`} />
+                : <FoodPhoto food={meal.food} size={72} />}
               <ul>
                 <li><span>分量</span><b>{meal.amount_grams} 克</b></li>
                 <li><span>喜欢程度</span><b>{meal.reaction}</b></li>
@@ -900,14 +962,29 @@ function App() {
       }
       const pending = readLocal(pendingKey, []);
       if (pending.length) {
-        const rows = pending.map(({ id, localId, time, asset, ...m }) => ({ ...m, user_id: user.id, emoji: emojiFor(m.food) }));
+        const rows = [];
+        for (const pendingMeal of pending) {
+          const photoPath = await uploadMealPhoto(user.id, pendingMeal);
+          const { id, localId, time, asset, photo_preview, ...m } = pendingMeal;
+          rows.push({ ...m, photo_path: photoPath, user_id: user.id, emoji: emojiFor(m.food) });
+        }
         const { error } = await supabase.from("meals").insert(rows);
         if (!error) localStorage.removeItem(pendingKey);
       }
       const { data } = await supabase.from("meals").select("*").order("eaten_at");
       if (data) {
+        const cachedMeals = new Map(readLocal(mealsKey, []).map(meal => [meal.id, meal]));
+        const hydrated = await Promise.all(data.map(async meal => {
+          if (!meal.photo_path) return meal;
+          const cached = cachedMeals.get(meal.id)?.photo_preview;
+          if (cached) return { ...meal, photo_preview: cached };
+          const { data: photoBlob } = await supabase.storage.from("meal-photos").download(meal.photo_path);
+          if (!photoBlob) return meal;
+          try { return { ...meal, photo_preview: await blobToDataUrl(photoBlob) }; }
+          catch { return meal; }
+        }));
         const stillPending = readLocal(pendingKey, []);
-        const merged = [...data, ...stillPending];
+        const merged = [...hydrated, ...stillPending];
         saveMeals(merged);
         setSyncStatus("爸妈已同步");
       }
@@ -943,7 +1020,7 @@ function App() {
   const addMeal = async record => {
     const local = {
       food: record.food, amount_grams: record.amount_grams, reaction: record.reaction, note: record.note,
-      food_source: record.food_source, remarks: record.remarks,
+      food_source: record.food_source, remarks: record.remarks, photo_preview: record.photo_preview || null,
       id: `local-${Date.now()}`, eaten_at: isoFor(record.date || todayKey(), record.time),
     };
     saveMeals([...meals, local]);
@@ -957,10 +1034,12 @@ function App() {
     if (!navigator.onLine) { queue(); setNotice("已离线保存，联网后自动同步"); return; }
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) { queue(); setNotice("已保存在本机，登录后可与家人同步"); return; }
+    try { local.photo_path = await uploadMealPhoto(user.id, local); }
+    catch { queue(); setNotice("记录已保存在手机，照片会稍后自动同步"); return; }
     const { error } = await supabase.from("meals").insert({
       user_id: user.id, food: local.food, amount_grams: local.amount_grams,
       eaten_at: local.eaten_at, reaction: local.reaction, note: local.note,
-      food_source: local.food_source, remarks: local.remarks, emoji: emojiFor(local.food),
+      food_source: local.food_source, remarks: local.remarks, photo_path: local.photo_path, emoji: emojiFor(local.food),
     });
     if (error) { queue(); setNotice("已保存在本机，稍后自动重试"); } else { setNotice("这一餐已同步给家人"); sync(); }
   };
@@ -971,6 +1050,9 @@ function App() {
     setDetailMeal(null);
     if (!String(meal.id).startsWith("local-") && navigator.onLine) {
       await supabase.from("meals").delete().eq("id", meal.id);
+      if (meal.photo_path) await supabase.storage.from("meal-photos").remove([meal.photo_path]);
+    } else if (meal.photo_path && navigator.onLine) {
+      await supabase.storage.from("meal-photos").remove([meal.photo_path]);
     }
     setNotice("已删除这条记录");
   };
