@@ -166,6 +166,13 @@
 .baby-identity{min-width:0}
 .baby-identity>div{gap:7px}
 .baby-identity .age-editor span{font-size:11px;white-space:nowrap}
+.baby-identity[role="button"]{cursor:pointer;border-radius:10px;outline:none}
+.baby-identity[role="button"]:focus-visible{box-shadow:0 0 0 3px rgba(113,128,106,.14)}
+.profile-edit-mark{width:20px;height:20px;border-radius:50%;background:var(--sage-soft);color:var(--sage);display:grid;place-items:center;font-style:normal;flex:0 0 auto}
+.auth-card{max-height:calc(100dvh - 24px);overflow-y:auto;overscroll-behavior:contain}
+.signup-profile-fields{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.baby-profile-card .account-mark{margin-bottom:13px}
+@media(max-width:360px){.signup-profile-fields{grid-template-columns:1fr}}
 
 /* ---------- 照片墙 ---------- */
 .photo-wall-sheet{height:min(82dvh,720px);max-height:calc(100dvh - max(18px,env(safe-area-inset-top)));display:flex;flex-direction:column;overflow:hidden;padding-bottom:calc(14px + env(safe-area-inset-bottom))}

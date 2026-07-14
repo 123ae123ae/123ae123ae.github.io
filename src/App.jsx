@@ -18,6 +18,7 @@ const planKey = "baby-plan-v1";
 const customFoodsKey = "baby-custom-foods-v1";
 const avatarKey = "elnaz-avatar-local-v1";
 const birthKey = "elnaz-birthdate-v1";
+const babyNameKey = "baby-name-v1";
 
 const readLocal = (key, fallback) => {
   try { return JSON.parse(localStorage.getItem(key)) ?? fallback; } catch { return fallback; }
@@ -196,24 +197,22 @@ const uploadMealPhoto = async (userId, meal) => {
   return path;
 };
 
-function Header({ online, status, signedIn, avatar, onAvatar, onCalendar, birth, onBirthChange, onSyncTap, onTopTap }) {
+function Header({ online, status, signedIn, avatar, babyName, onAvatar, onCalendar, birth, onProfileEdit, onSyncTap, onTopTap }) {
   const preciseAge = ageLabel(birth);
   return (
     <header className="baby-header" onClick={e => {
       if (!e.target.closest("button,input,label,[role='button']")) onTopTap?.();
     }}>
-      <label className="avatar-editor" aria-label="更换 Elnaz 的头像">
-        <img className="baby-avatar" src={avatar} alt="Elnaz 的头像" />
+      <label className="avatar-editor" aria-label={`更换 ${babyName} 的头像`}>
+        <img className="baby-avatar" src={avatar} alt={`${babyName} 的头像`} />
         <span><Camera size={13} /></span>
         <input type="file" accept="image/jpeg,image/png,image/webp" onChange={onAvatar} />
       </label>
-      <div className="baby-identity">
+      <div className="baby-identity" role="button" tabIndex={0} onClick={onProfileEdit} onKeyDown={e => e.key === "Enter" && onProfileEdit()} aria-label="编辑宝宝姓名和出生日期">
         <div>
-          <strong>Elnaz</strong>
-          <label className="age-editor" title="点击修改出生日期">
-            <span>{preciseAge}</span>
-            <input type="date" value={birth} max={todayKey()} onChange={e => e.target.value && onBirthChange(e.target.value)} />
-          </label>
+          <strong>{babyName}</strong>
+          <span>{preciseAge}</span>
+          <i className="profile-edit-mark"><Pencil size={11} /></i>
         </div>
         <p>{fmtDateCN(todayKey())}</p>
       </div>
@@ -223,6 +222,32 @@ function Header({ online, status, signedIn, avatar, onAvatar, onCalendar, birth,
         <small>{signedIn ? (online ? status || "已登录 · 查看账号" : "已登录 · 当前离线") : (online ? "未登录 · 点此登录" : "未登录 · 离线记录")}</small>
       </div>
     </header>
+  );
+}
+
+function BabyProfileDialog({ open, onOpenChange, babyName, birth, onSave }) {
+  const [name, setName] = useState(babyName);
+  const [birthDate, setBirthDate] = useState(birth);
+  useEffect(() => {
+    if (open) { setName(babyName); setBirthDate(birth); }
+  }, [open, babyName, birth]);
+  return (
+    <Dialog.Root open={open} onOpenChange={onOpenChange}>
+      <Dialog.Portal>
+        <Dialog.Overlay className="dialog-overlay" />
+        <Dialog.Content className="auth-card baby-profile-card">
+          <Dialog.Close className="icon-button auth-close" aria-label="关闭"><X size={18} /></Dialog.Close>
+          <div className="account-mark"><Baby size={25} /></div>
+          <Dialog.Title>宝宝资料</Dialog.Title>
+          <Dialog.Description>姓名和出生日期会用于月龄计算，并同步给家人。</Dialog.Description>
+          <form onSubmit={e => { e.preventDefault(); if (name.trim() && birthDate) onSave({ name: name.trim(), birth: birthDate }); }}>
+            <label>宝宝姓名<input value={name} onChange={e => setName(e.target.value)} maxLength={40} autoComplete="off" required /></label>
+            <label>出生日期<input type="date" value={birthDate} max={todayKey()} onChange={e => setBirthDate(e.target.value)} required /></label>
+            <button className="save-button" type="submit"><Check size={18} />保存宝宝资料</button>
+          </form>
+        </Dialog.Content>
+      </Dialog.Portal>
+    </Dialog.Root>
   );
 }
 
@@ -432,7 +457,7 @@ function AddMealDialog({ open, prefill, onOpenChange, onSave }) {
   );
 }
 
-function MealDetailDialog({ meal, onClose, onDelete, onEdit }) {
+function MealDetailDialog({ meal, onClose, onDelete, onEdit, babyName }) {
   const [viewerOpen, setViewerOpen] = useState(false);
   return (
     <>
@@ -476,30 +501,30 @@ function MealDetailDialog({ meal, onClose, onDelete, onEdit }) {
           </Dialog.Content>
         </Dialog.Portal>
       </Dialog.Root>
-      <PhotoViewerDialog open={viewerOpen} onOpenChange={setViewerOpen} meal={meal} />
+      <PhotoViewerDialog open={viewerOpen} onOpenChange={setViewerOpen} meal={meal} babyName={babyName} />
     </>
   );
 }
 
-const photoFilename = meal => {
+const photoFilename = (meal, babyName) => {
   const date = meal?.eaten_at ? dayKeyOf(meal.eaten_at) : todayKey();
   const food = String(meal?.food || "餐食").replace(/[\\/:*?"<>|]/g, "-");
-  return `Elnaz-${date}-${food}.webp`;
+  return `${babyName}-${date}-${food}.webp`;
 };
 
-async function saveMealPhoto(meal) {
+async function saveMealPhoto(meal, babyName) {
   const blob = await dataUrlToBlob(meal.photo_preview);
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
   link.href = url;
-  link.download = photoFilename(meal);
+  link.download = photoFilename(meal, babyName);
   document.body.appendChild(link);
   link.click();
   link.remove();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
-function PhotoViewerDialog({ open, onOpenChange, meal }) {
+function PhotoViewerDialog({ open, onOpenChange, meal, babyName }) {
   const [message, setMessage] = useState("");
   useEffect(() => { if (open) setMessage(""); }, [open]);
   if (!meal?.photo_preview) return null;
@@ -507,15 +532,15 @@ function PhotoViewerDialog({ open, onOpenChange, meal }) {
   const sharePhoto = async () => {
     try {
       const blob = await dataUrlToBlob(meal.photo_preview);
-      const file = new File([blob], photoFilename(meal), { type: blob.type || "image/webp" });
+      const file = new File([blob], photoFilename(meal, babyName), { type: blob.type || "image/webp" });
       if (navigator.share && navigator.canShare?.({ files: [file] })) {
         await navigator.share({
           files: [file],
-          title: `${meal.food} · Elnaz 的辅食记录`,
+          title: `${meal.food} · ${babyName} 的辅食记录`,
           text: `${fmtDateCN(dayKeyOf(meal.eaten_at))} ${fmtTime(meal.eaten_at)}`,
         });
       } else {
-        await saveMealPhoto(meal);
+        await saveMealPhoto(meal, babyName);
         setMessage("当前浏览器不支持图片分享，已改为保存照片");
       }
     } catch (error) {
@@ -525,7 +550,7 @@ function PhotoViewerDialog({ open, onOpenChange, meal }) {
 
   const savePhoto = async () => {
     try {
-      await saveMealPhoto(meal);
+      await saveMealPhoto(meal, babyName);
       setMessage("照片已开始保存");
     } catch {
       setMessage("保存失败，请长按照片保存");
@@ -760,7 +785,7 @@ function FoodEditDialog({ editing, onClose, onSave, onDelete }) {
 }
 
 /* ---------- 页面 ---------- */
-function LibraryView({ library, months, tried, onRecord, onPlan, onEdit, onAdd, hiddenCount, onRestoreHidden }) {
+function LibraryView({ library, months, tried, onRecord, onPlan, onEdit, onAdd, hiddenCount, onRestoreHidden, babyName }) {
   const [query, setQuery] = useState("");
   const [cat, setCat] = useState("全部");
   const stages = useMemo(() => {
@@ -779,7 +804,7 @@ function LibraryView({ library, months, tried, onRecord, onPlan, onEdit, onAdd, 
   return (
     <div className="page">
       <h1 className="page-title">食物库</h1>
-      <p className="page-sub">按法国辅食添加对照表整理，Elnaz 现在 {months} 个月。</p>
+      <p className="page-sub">按法国辅食添加对照表整理，{babyName} 现在 {months} 个月。</p>
       <div className="lib-toolbar">
         <input className="search-input" placeholder="搜索食物（中文或法语）…" value={query} onChange={e => setQuery(e.target.value)} />
         <button className="add-food-button" onClick={onAdd}><Plus size={17} />添加食物</button>
@@ -826,11 +851,11 @@ function LibraryView({ library, months, tried, onRecord, onPlan, onEdit, onAdd, 
   );
 }
 
-function PlanView({ plan, onRecord, onRemove }) {
+function PlanView({ plan, onRecord, onRemove, babyName }) {
   return (
     <div className="page">
       <h1 className="page-title">尝试计划</h1>
-      <p className="page-sub">想给 Elnaz 试的新食物，都放在这里。</p>
+      <p className="page-sub">想给 {babyName} 试的新食物，都放在这里。</p>
       {plan.length === 0 && <p className="empty-hint">计划还是空的。去「食物库」挑一样，或在首页把推荐加进来。</p>}
       {plan.map(item => (
         <div className="plan-row" key={item.id}>
@@ -921,7 +946,7 @@ function BigCalendar({ meals, onOpenMeal, onAddFor }) {
   );
 }
 
-function PhotoWallDialog({ open, onOpenChange, meals, onOpenMeal }) {
+function PhotoWallDialog({ open, onOpenChange, meals, onOpenMeal, babyName }) {
   const [viewerMeal, setViewerMeal] = useState(null);
   const photos = useMemo(
     () => meals.filter(meal => meal.photo_preview).sort((a, b) => new Date(b.eaten_at) - new Date(a.eaten_at)),
@@ -936,7 +961,7 @@ function PhotoWallDialog({ open, onOpenChange, meals, onOpenMeal }) {
           <div className="sheet-grabber" />
           <div className="sheet-head">
             <div>
-              <Dialog.Title>Elnaz 的餐食照片</Dialog.Title>
+              <Dialog.Title>{babyName} 的餐食照片</Dialog.Title>
               <Dialog.Description>{photos.length ? `共 ${photos.length} 张 · 上下滑动查看全部照片` : "以后记录的餐食照片会收藏在这里"}</Dialog.Description>
             </div>
             <Dialog.Close className="icon-button"><X size={20} /></Dialog.Close>
@@ -952,18 +977,18 @@ function PhotoWallDialog({ open, onOpenChange, meals, onOpenMeal }) {
                 ))}
               </div>
             ) : (
-              <div className="photo-wall-empty"><span><Images size={28} /></span><b>照片墙还是空的</b><p>记录一餐时添加照片，就能慢慢收集 Elnaz 的辅食回忆。</p></div>
+              <div className="photo-wall-empty"><span><Images size={28} /></span><b>照片墙还是空的</b><p>记录一餐时添加照片，就能慢慢收集 {babyName} 的辅食回忆。</p></div>
             )}
           </div>
         </Dialog.Content>
       </Dialog.Portal>
     </Dialog.Root>
-    <PhotoViewerDialog open={!!viewerMeal} onOpenChange={value => !value && setViewerMeal(null)} meal={viewerMeal} />
+    <PhotoViewerDialog open={!!viewerMeal} onOpenChange={value => !value && setViewerMeal(null)} meal={viewerMeal} babyName={babyName} />
     </>
   );
 }
 
-function GrowthView({ meals, onOpenMeal, onAddFor }) {
+function GrowthView({ meals, onOpenMeal, onAddFor, babyName }) {
   const [photoWallOpen, setPhotoWallOpen] = useState(false);
   const stats = useMemo(() => {
     const days = new Set(meals.map(m => dayKeyOf(m.eaten_at)));
@@ -992,7 +1017,7 @@ function GrowthView({ meals, onOpenMeal, onAddFor }) {
       )}
       <h2 className="history-title">每日饮食日历</h2>
       <BigCalendar meals={meals} onOpenMeal={onOpenMeal} onAddFor={onAddFor} />
-      <PhotoWallDialog open={photoWallOpen} onOpenChange={setPhotoWallOpen} meals={meals} onOpenMeal={onOpenMeal} />
+      <PhotoWallDialog open={photoWallOpen} onOpenChange={setPhotoWallOpen} meals={meals} onOpenMeal={onOpenMeal} babyName={babyName} />
     </div>
   );
 }
@@ -1011,6 +1036,7 @@ function App() {
   const [plan, setPlan] = useState(() => readLocal(planKey, []));
   const [customFoods, setCustomFoods] = useState(() => readLocal(customFoodsKey, []));
   const [editingFood, setEditingFood] = useState(null);
+  const [babyName, setBabyName] = useState(() => localStorage.getItem(babyNameKey) || "Elnaz");
   const [birth, setBirth] = useState(() => localStorage.getItem(birthKey) || "2026-02-13");
   const [avatar, setAvatar] = useState(() => localStorage.getItem(avatarKey) || "/assets/baby-avatar.png");
   const [tab, setTab] = useState("today");
@@ -1019,6 +1045,7 @@ function App() {
   const [authOpen, setAuthOpen] = useState(false);
   const [calendarOpen, setCalendarOpen] = useState(false);
   const [detailMeal, setDetailMeal] = useState(null);
+  const [profileOpen, setProfileOpen] = useState(false);
   const [info, setInfo] = useState(null);
   const [sortBy, setSortBy] = useState("time");
   const [online, setOnline] = useState(navigator.onLine);
@@ -1054,6 +1081,26 @@ function App() {
   const saveCustomFoods = next => {
     setCustomFoods(next);
     try { writeLocal(customFoodsKey, next); } catch { setNotice("手机存储空间不够了，照片没能保存"); }
+  };
+  const storeBabyProfile = ({ name, birth: birthDate }) => {
+    setBabyName(name);
+    setBirth(birthDate);
+    localStorage.setItem(babyNameKey, name);
+    localStorage.setItem(birthKey, birthDate);
+  };
+  const saveBabyProfile = async profile => {
+    storeBabyProfile(profile);
+    setProfileOpen(false);
+    if (!navigator.onLine) { setNotice("宝宝资料已保存在手机，联网后同步"); return; }
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) { setNotice("宝宝资料已保存在手机，登录后同步"); return; }
+    const { error } = await supabase.from("baby_profiles").upsert({
+      user_id: user.id,
+      baby_name: profile.name,
+      birth_date: profile.birth,
+      updated_at: new Date().toISOString(),
+    });
+    setNotice(error ? "宝宝资料已保存在手机，稍后自动同步" : "宝宝资料已同步给家人");
   };
 
   const saveFood = (data, original) => {
@@ -1098,7 +1145,26 @@ function App() {
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
-      const { data: profile } = await supabase.from("baby_profiles").select("avatar_path").eq("user_id", user.id).maybeSingle();
+      const { data: profile } = await supabase.from("baby_profiles").select("baby_name,birth_date,avatar_path").eq("user_id", user.id).maybeSingle();
+      const localName = user.user_metadata?.baby_name || localStorage.getItem(babyNameKey) || "Elnaz";
+      const localBirth = user.user_metadata?.birth_date || localStorage.getItem(birthKey) || "2026-02-13";
+      if (profile?.baby_name) {
+        setBabyName(profile.baby_name);
+        localStorage.setItem(babyNameKey, profile.baby_name);
+      }
+      if (profile?.birth_date) {
+        setBirth(profile.birth_date);
+        localStorage.setItem(birthKey, profile.birth_date);
+      }
+      if (!profile || !profile.birth_date) {
+        await supabase.from("baby_profiles").upsert({
+          user_id: user.id,
+          baby_name: profile?.baby_name || localName,
+          birth_date: profile?.birth_date || localBirth,
+          avatar_path: profile?.avatar_path || null,
+          updated_at: new Date().toISOString(),
+        });
+      }
       if (profile?.avatar_path) {
         const { data: blob } = await supabase.storage.from("baby-avatars").download(profile.avatar_path);
         if (blob) setAvatar(URL.createObjectURL(blob));
@@ -1171,6 +1237,7 @@ function App() {
       if (!active) return;
       setCurrentUser(session?.user || null);
       if (event === "SIGNED_OUT") setSyncStatus("");
+      if (event === "SIGNED_IN" && session?.user) setTimeout(() => sync(), 0);
     });
     return () => {
       active = false;
@@ -1321,9 +1388,9 @@ function App() {
       const path = `${user.id}/elnaz-avatar.webp`;
       const { error: uploadError } = await supabase.storage.from("baby-avatars").upload(path, blob, { contentType: "image/webp", upsert: true });
       if (uploadError) throw uploadError;
-      const { error: profileError } = await supabase.from("baby_profiles").upsert({ user_id: user.id, baby_name: "Elnaz", avatar_path: path, updated_at: new Date().toISOString() });
+      const { error: profileError } = await supabase.from("baby_profiles").upsert({ user_id: user.id, baby_name: babyName, birth_date: birth, avatar_path: path, updated_at: new Date().toISOString() });
       if (profileError) throw profileError;
-      setNotice("Elnaz 的头像已同步给家人");
+      setNotice(`${babyName} 的头像已同步给家人`);
     } catch { setNotice("头像保存失败，请换一张图片重试"); }
   };
 
@@ -1342,7 +1409,7 @@ function App() {
     subtitle: `适合 ${recommend.stage} 的宝宝`,
     paragraphs: [
       recommend.tip,
-      `Elnaz 现在 ${months} 个月，还没有记录过${recommend.name}，正适合尝试。建议分量 ${recommend.amount}，第一次选在上午，方便白天观察反应。`,
+      `${babyName} 现在 ${months} 个月，还没有记录过${recommend.name}，正适合尝试。建议分量 ${recommend.amount}，第一次选在上午，方便白天观察反应。`,
     ],
   };
 
@@ -1360,10 +1427,10 @@ function App() {
         >
           {tab === "today" && <>
             <Header
-              online={online} status={syncStatus} signedIn={!!currentUser} avatar={avatar} onAvatar={changeAvatar}
+              online={online} status={syncStatus} signedIn={!!currentUser} avatar={avatar} babyName={babyName} onAvatar={changeAvatar}
               onCalendar={() => setCalendarOpen(true)} birth={birth} onSyncTap={syncTap}
               onTopTap={scrollToTop}
-              onBirthChange={v => { setBirth(v); localStorage.setItem(birthKey, v); setNotice("出生日期已更新"); }}
+              onProfileEdit={() => setProfileOpen(true)}
             />
             <button className="primary-action" onClick={() => { setPrefill(null); setSheetOpen(true); }}><Plus size={25} />记录一餐</button>
             <HealthStrip todayMeals={todayMeals} />
@@ -1400,9 +1467,9 @@ function App() {
               <button onClick={() => setInfo(allergyInfo)}>了解更多 <ChevronRight /></button>
             </section>
           </>}
-          {tab === "library" && <LibraryView library={library} months={months} tried={tried} onRecord={openRecord} onPlan={addToPlan} onEdit={f => setEditingFood({ mode: "edit", food: f })} onAdd={() => setEditingFood({ mode: "add" })} hiddenCount={customFoods.filter(c => c.hidden).length} onRestoreHidden={restoreHiddenFoods} />}
-          {tab === "plan" && <PlanView plan={plan} onRecord={openRecord} onRemove={item => savePlan(plan.filter(p => p.id !== item.id))} />}
-          {tab === "growth" && <GrowthView meals={meals} onOpenMeal={setDetailMeal} onAddFor={d => { setPrefill({ date: d }); setSheetOpen(true); }} />}
+          {tab === "library" && <LibraryView library={library} months={months} tried={tried} onRecord={openRecord} onPlan={addToPlan} onEdit={f => setEditingFood({ mode: "edit", food: f })} onAdd={() => setEditingFood({ mode: "add" })} hiddenCount={customFoods.filter(c => c.hidden).length} onRestoreHidden={restoreHiddenFoods} babyName={babyName} />}
+          {tab === "plan" && <PlanView plan={plan} onRecord={openRecord} onRemove={item => savePlan(plan.filter(p => p.id !== item.id))} babyName={babyName} />}
+          {tab === "growth" && <GrowthView meals={meals} onOpenMeal={setDetailMeal} onAddFor={d => { setPrefill({ date: d }); setSheetOpen(true); }} babyName={babyName} />}
         </main>
         <AnimatePresence>
           {showScrollTop && (
@@ -1449,6 +1516,9 @@ function App() {
         user={currentUser}
         online={online}
         pendingCount={readLocal(pendingKey, []).length}
+        babyName={babyName}
+        birth={birth}
+        onProfilePrepared={storeBabyProfile}
         onSync={syncFromAccount}
         onSignedIn={user => { setCurrentUser(user); setAuthOpen(false); sync(); setNotice("登录成功，正在同步记录"); }}
         onSignedOut={() => { setCurrentUser(null); setAuthOpen(false); setSyncStatus(""); setNotice("已退出这台设备，手机里的记录仍然保留"); }}
@@ -1459,19 +1529,31 @@ function App() {
         onClose={() => setDetailMeal(null)}
         onDelete={deleteMeal}
         onEdit={meal => { setDetailMeal(null); setPrefill({ meal }); setSheetOpen(true); }}
+        babyName={babyName}
       />
+      <BabyProfileDialog open={profileOpen} onOpenChange={setProfileOpen} babyName={babyName} birth={birth} onSave={saveBabyProfile} />
       <FoodEditDialog editing={editingFood} onClose={() => setEditingFood(null)} onSave={saveFood} onDelete={deleteFood} />
       <InfoDialog info={info} onClose={() => setInfo(null)} />
     </div>
   );
 }
 
-function AuthDialog({ open, onOpenChange, onSignedIn, onSignedOut, onSync, user, online, pendingCount }) {
+function AuthDialog({ open, onOpenChange, onSignedIn, onSignedOut, onSync, user, online, pendingCount, babyName, birth, onProfilePrepared }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [message, setMessage] = useState("");
   const [signingOut, setSigningOut] = useState(false);
-  useEffect(() => { if (open) setMessage(""); }, [open, user]);
+  const [signupMode, setSignupMode] = useState(false);
+  const [signupName, setSignupName] = useState(babyName);
+  const [signupBirth, setSignupBirth] = useState(birth);
+  useEffect(() => {
+    if (open) {
+      setMessage("");
+      setSignupMode(false);
+      setSignupName(babyName);
+      setSignupBirth(birth);
+    }
+  }, [open, user, babyName, birth]);
   const logout = async () => {
     setSigningOut(true);
     setMessage("");
@@ -1491,11 +1573,19 @@ function AuthDialog({ open, onOpenChange, onSignedIn, onSignedOut, onSync, user,
       else setMessage(`登录失败：${msg}`);
     } else { setMessage(""); onSignedIn(data.user); }
   };
-  const signup = async () => {
+  const signup = async e => {
+    e.preventDefault();
     if (!/.+@.+\..+/.test(email)) { setMessage("请先填写正确的邮箱地址"); return; }
     if (password.length < 6) { setMessage("密码至少要 6 位"); return; }
+    if (!signupName.trim()) { setMessage("请填写宝宝姓名"); return; }
+    if (!signupBirth) { setMessage("请选择宝宝出生日期"); return; }
     setMessage("正在创建家庭账号…");
-    const { data, error } = await supabase.auth.signUp({ email, password });
+    const profile = { name: signupName.trim(), birth: signupBirth };
+    const { data, error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: { data: { baby_name: profile.name, birth_date: profile.birth } },
+    });
     if (error) {
       const msg = error.message || "";
       if (/already registered|already been registered/i.test(msg)) setMessage("这个邮箱已经注册过了，直接登录即可");
@@ -1507,6 +1597,7 @@ function AuthDialog({ open, onOpenChange, onSignedIn, onSignedOut, onSync, user,
     }
     // 有些配置下重复注册不报错，但返回的用户没有身份信息
     if (data?.user && data.user.identities?.length === 0) { setMessage("这个邮箱已经注册过了，直接登录即可"); return; }
+    onProfilePrepared(profile);
     setMessage(data?.session ? "注册成功，已自动登录" : "注册成功！请打开邮箱里的确认链接，然后回来登录。");
     if (data?.session) onSignedIn(data.session.user);
   };
@@ -1519,7 +1610,7 @@ function AuthDialog({ open, onOpenChange, onSignedIn, onSignedOut, onSync, user,
           <div className="account-mark"><Baby size={25} /></div>
           <div className="account-status"><i />家庭账号已登录</div>
           <Dialog.Title>账号与同步</Dialog.Title>
-          <Dialog.Description>你和家人使用同一账号，就能看到 Elnaz 的相同记录。</Dialog.Description>
+          <Dialog.Description>你和家人使用同一账号，就能看到 {babyName} 的相同记录。</Dialog.Description>
           <div className="account-details">
             <div><Mail size={17} /><span><small>当前账号</small><b>{user.email || "家庭账号"}</b></span></div>
             <div><RefreshCw size={17} /><span><small>同步状态</small><b>{online ? (pendingCount ? `${pendingCount} 条记录等待同步` : "已联网，会自动同步") : "当前离线，联网后自动同步"}</b></span></div>
@@ -1539,13 +1630,17 @@ function AuthDialog({ open, onOpenChange, onSignedIn, onSignedOut, onSync, user,
         <Dialog.Content className="auth-card">
           <Dialog.Close className="icon-button auth-close" aria-label="关闭"><X size={18} /></Dialog.Close>
           <img src="/assets/baby-avatar.png" alt="" />
-          <Dialog.Title>欢迎来到宝贝食光</Dialog.Title>
-          <Dialog.Description>登录后，你和家人可以随时同步 Elnaz 的辅食记录。</Dialog.Description>
-          <form onSubmit={login}>
+          <Dialog.Title>{signupMode ? "创建家庭账号" : "欢迎来到宝贝食光"}</Dialog.Title>
+          <Dialog.Description>{signupMode ? "先填写宝宝资料，再创建爸妈共同使用的账号。" : `登录后，你和家人可以随时同步 ${babyName} 的辅食记录。`}</Dialog.Description>
+          <form onSubmit={signupMode ? signup : login}>
+            {signupMode && <div className="signup-profile-fields">
+              <label>宝宝姓名<input value={signupName} onChange={e => setSignupName(e.target.value)} maxLength={40} autoComplete="off" required /></label>
+              <label>出生日期<input type="date" value={signupBirth} max={todayKey()} onChange={e => setSignupBirth(e.target.value)} required /></label>
+            </div>}
             <label>邮箱<input type="email" value={email} onChange={e => setEmail(e.target.value)} required /></label>
             <label>密码<input type="password" minLength="6" value={password} onChange={e => setPassword(e.target.value)} required /></label>
-            <button className="save-button" type="submit">登录</button>
-            <button className="signup-link" type="button" onClick={signup}>第一次使用？创建家庭账号</button>
+            <button className="save-button" type="submit">{signupMode ? "创建家庭账号" : "登录"}</button>
+            <button className="signup-link" type="button" onClick={() => { setSignupMode(value => !value); setMessage(""); }}>{signupMode ? "已有账号？返回登录" : "第一次使用？创建家庭账号"}</button>
             <p className="auth-message">{message}</p>
           </form>
         </Dialog.Content>
