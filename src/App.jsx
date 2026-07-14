@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from "motion/react";
 import { createClient } from "@supabase/supabase-js";
 import {
   Activity, AlertTriangle, ArrowUp, Baby, CalendarDays, Camera, Check, ChevronDown, ChevronLeft, ChevronRight,
-  ClipboardList, ImagePlus, Library, LogOut, Mail, Pencil, Plus, RefreshCw, ShieldCheck, Sparkles, Sprout, Trash2, X,
+  ClipboardList, ImagePlus, Images, Library, LogOut, Mail, Pencil, Plus, RefreshCw, ShieldCheck, Sparkles, Sprout, Trash2, X,
 } from "lucide-react";
 
 const supabase = createClient("https://vqxzrydqnlpxyjafjdoh.supabase.co", "sb_publishable_Pn-dEaqu0oWYJ8eK8OgUAg_PPORfQFF");
@@ -797,7 +797,9 @@ function BigCalendar({ meals, onOpenMeal, onAddFor }) {
             >
               <b>{d}</b>
               <span className="day-foods">
-                {list.slice(0, 4).map(m => <FoodPhoto key={m.id} food={m.food} size={17} />)}
+                {list.slice(0, 4).map(m => m.photo_preview
+                  ? <img className="day-meal-photo" key={m.id} src={m.photo_preview} alt="" />
+                  : <FoodPhoto key={m.id} food={m.food} size={17} />)}
                 {list.length > 4 && <i>+{list.length - 4}</i>}
               </span>
             </button>
@@ -812,12 +814,13 @@ function BigCalendar({ meals, onOpenMeal, onAddFor }) {
         {dayMeals.length === 0
           ? <p className="empty-hint">这一天没有记录</p>
           : dayMeals.map(m => (
-            <button className="mini-meal as-button" key={m.id} onClick={() => onOpenMeal(m)}>
+            <button className={`mini-meal calendar-meal-card as-button ${m.photo_preview ? "has-photo" : ""}`} key={m.id} onClick={() => onOpenMeal(m)}>
               <time>{fmtTime(m.eaten_at)}</time>
-              <FoodPhoto food={m.food} size={36} />
-              <span>{m.food}</span>
-              <b>{m.amount_grams}克</b>
-              <small>{m.reaction}</small>
+              {m.photo_preview
+                ? <img className="calendar-meal-photo" src={m.photo_preview} alt={`${m.food}的餐食照片`} />
+                : <FoodPhoto food={m.food} size={42} />}
+              <span className="calendar-meal-copy"><b>{m.food}</b><small><em>{m.amount_grams}克</em>{m.reaction}</small></span>
+              <ChevronRight size={16} />
             </button>
           ))}
       </div>
@@ -825,12 +828,49 @@ function BigCalendar({ meals, onOpenMeal, onAddFor }) {
   );
 }
 
+function PhotoWallDialog({ open, onOpenChange, meals, onOpenMeal }) {
+  const photos = useMemo(
+    () => meals.filter(meal => meal.photo_preview).sort((a, b) => new Date(b.eaten_at) - new Date(a.eaten_at)),
+    [meals],
+  );
+  return (
+    <Dialog.Root open={open} onOpenChange={onOpenChange}>
+      <Dialog.Portal>
+        <Dialog.Overlay className="dialog-overlay" />
+        <Dialog.Content className="meal-sheet photo-wall-sheet">
+          <div className="sheet-grabber" />
+          <div className="sheet-head">
+            <div>
+              <Dialog.Title>Elnaz 的餐食照片</Dialog.Title>
+              <Dialog.Description>{photos.length ? `珍藏了 ${photos.length} 个可爱的吃饭瞬间` : "以后记录的餐食照片会收藏在这里"}</Dialog.Description>
+            </div>
+            <Dialog.Close className="icon-button"><X size={20} /></Dialog.Close>
+          </div>
+          {photos.length ? (
+            <div className="photo-wall-grid">
+              {photos.map(meal => (
+                <button key={meal.id} onClick={() => { onOpenChange(false); onOpenMeal(meal); }}>
+                  <img src={meal.photo_preview} alt={`${meal.food}的餐食照片`} />
+                  <span><b>{meal.food}</b><small>{fmtDateCN(dayKeyOf(meal.eaten_at)).replace(" · ", " ")} · {fmtTime(meal.eaten_at)}</small></span>
+                </button>
+              ))}
+            </div>
+          ) : (
+            <div className="photo-wall-empty"><span><Images size={28} /></span><b>照片墙还是空的</b><p>记录一餐时添加照片，就能慢慢收集 Elnaz 的辅食回忆。</p></div>
+          )}
+        </Dialog.Content>
+      </Dialog.Portal>
+    </Dialog.Root>
+  );
+}
+
 function GrowthView({ meals, onOpenMeal, onAddFor }) {
+  const [photoWallOpen, setPhotoWallOpen] = useState(false);
   const stats = useMemo(() => {
     const days = new Set(meals.map(m => dayKeyOf(m.eaten_at)));
     const foods = new Map();
     meals.forEach(m => foods.set(m.food, (foods.get(m.food) || 0) + 1));
-    return { total: meals.length, days: days.size, foods: [...foods.entries()].sort((a, b) => b[1] - a[1]) };
+    return { total: meals.length, days: days.size, photos: meals.filter(m => m.photo_preview).length, foods: [...foods.entries()].sort((a, b) => b[1] - a[1]) };
   }, [meals]);
   return (
     <div className="page">
@@ -839,6 +879,9 @@ function GrowthView({ meals, onOpenMeal, onAddFor }) {
         <div><b>{stats.total}</b><span>累计记录</span></div>
         <div><b>{stats.foods.length}</b><span>尝试过的食物</span></div>
         <div><b>{stats.days}</b><span>记录天数</span></div>
+        <button className="photo-wall-stat" onClick={() => setPhotoWallOpen(true)}>
+          <i><Images size={18} /></i><b>{stats.photos}</b><span>照片墙</span>
+        </button>
       </div>
       {stats.foods.length > 0 && (
         <section className="food-tags-block">
@@ -850,6 +893,7 @@ function GrowthView({ meals, onOpenMeal, onAddFor }) {
       )}
       <h2 className="history-title">每日饮食日历</h2>
       <BigCalendar meals={meals} onOpenMeal={onOpenMeal} onAddFor={onAddFor} />
+      <PhotoWallDialog open={photoWallOpen} onOpenChange={setPhotoWallOpen} meals={meals} onOpenMeal={onOpenMeal} />
     </div>
   );
 }
