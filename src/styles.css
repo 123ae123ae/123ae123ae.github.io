@@ -152,3 +152,6 @@
 .food-picker-menu button>b{font-size:12px}
 .food-picker-menu button>small{font-size:10px;color:var(--muted);text-align:right}
 .food-picker-menu>p{font-size:11px;color:var(--muted);text-align:center;padding:14px 8px;margin:0}
+.baby-identity{min-width:0}
+.baby-identity>div{gap:7px}
+.baby-identity .age-editor span{font-size:11px;white-space:nowrap}

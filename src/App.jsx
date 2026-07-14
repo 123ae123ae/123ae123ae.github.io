@@ -42,11 +42,36 @@ const isoFor = (dayKey, hhmm) => {
   const [h, min] = hhmm.split(":").map(Number);
   return new Date(y, m - 1, d, h, min).toISOString();
 };
-const ageMonths = birth => {
-  const b = new Date(birth), n = new Date();
-  let months = (n.getFullYear() - b.getFullYear()) * 12 + n.getMonth() - b.getMonth();
-  if (n.getDate() < b.getDate()) months -= 1;
-  return Math.max(months, 0);
+const ageParts = birth => {
+  const [year, month, day] = birth.split("-").map(Number);
+  const now = new Date();
+  const today = { year: now.getFullYear(), month: now.getMonth(), day: now.getDate() };
+  const birthSerial = Date.UTC(year, month - 1, day);
+  const todaySerial = Date.UTC(today.year, today.month, today.day);
+  if (!year || todaySerial < birthSerial) return { months: 0, days: 0 };
+
+  const anniversaryFor = totalMonths => {
+    const targetMonth = month - 1 + totalMonths;
+    const targetYear = year + Math.floor(targetMonth / 12);
+    const monthIndex = ((targetMonth % 12) + 12) % 12;
+    const lastDay = new Date(targetYear, monthIndex + 1, 0).getDate();
+    return { year: targetYear, month: monthIndex, day: Math.min(day, lastDay) };
+  };
+
+  let months = (today.year - year) * 12 + today.month - (month - 1);
+  let anniversary = anniversaryFor(months);
+  let anniversarySerial = Date.UTC(anniversary.year, anniversary.month, anniversary.day);
+  if (anniversarySerial > todaySerial) {
+    months -= 1;
+    anniversary = anniversaryFor(months);
+    anniversarySerial = Date.UTC(anniversary.year, anniversary.month, anniversary.day);
+  }
+  return { months: Math.max(months, 0), days: Math.max(Math.round((todaySerial - anniversarySerial) / 86400000), 0) };
+};
+const ageMonths = birth => ageParts(birth).months;
+const ageLabel = birth => {
+  const { months, days } = ageParts(birth);
+  return `${months}个月${days}天`;
 };
 
 /* ---------- 食物库（数据来自法国辅食添加对照表，见 foodLibrary.js） ---------- */
@@ -135,7 +160,7 @@ const prepareFoodPhoto = file => new Promise((resolve, reject) => {
 });
 
 function Header({ online, status, signedIn, avatar, onAvatar, onCalendar, birth, onBirthChange, onSyncTap, onTopTap }) {
-  const months = ageMonths(birth);
+  const preciseAge = ageLabel(birth);
   return (
     <header className="baby-header" onClick={e => {
       if (!e.target.closest("button,input,label,[role='button']")) onTopTap?.();
@@ -149,7 +174,7 @@ function Header({ online, status, signedIn, avatar, onAvatar, onCalendar, birth,
         <div>
           <strong>Elnaz</strong>
           <label className="age-editor" title="点击修改出生日期">
-            <span>{months}个月</span>
+            <span>{preciseAge}</span>
             <input type="date" value={birth} max={todayKey()} onChange={e => e.target.value && onBirthChange(e.target.value)} />
           </label>
         </div>
