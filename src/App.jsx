@@ -15,6 +15,7 @@ const pendingKey = "baby-meals-pending-v2";
 const pendingUpdatesKey = "baby-meals-updates-v1";
 const legacyCacheKey = "baby-meals-cache-v2";
 const planKey = "baby-plan-v1";
+const planDeletesKey = "baby-plan-deletes-v1";
 const customFoodsKey = "baby-custom-foods-v1";
 const avatarKey = "elnaz-avatar-local-v1";
 const birthKey = "elnaz-birthdate-v1";
@@ -1169,6 +1170,41 @@ function App() {
         const { data: blob } = await supabase.storage.from("baby-avatars").download(profile.avatar_path);
         if (blob) setAvatar(URL.createObjectURL(blob));
       }
+
+      // 先处理离线期间删除的计划，再上传本机计划，最后合并家庭云端计划。
+      const queuedPlanDeletes = [...new Set(readLocal(planDeletesKey, []))];
+      const remainingPlanDeletes = [];
+      for (const food of queuedPlanDeletes) {
+        const { error } = await supabase.from("food_plans").delete().eq("user_id", user.id).eq("food", food);
+        if (error) remainingPlanDeletes.push(food);
+      }
+      if (remainingPlanDeletes.length) writeLocal(planDeletesKey, remainingPlanDeletes);
+      else localStorage.removeItem(planDeletesKey);
+
+      const localPlans = [...new Map(readLocal(planKey, []).map(item => [item.food, item])).values()];
+      const planMigrationKey = `baby-plan-cloud-ready-v1-${user.id}`;
+      const needsLegacyUpload = localStorage.getItem(planMigrationKey) !== "yes";
+      const plansToUpload = needsLegacyUpload
+        ? localPlans
+        : localPlans.filter(item => String(item.id).startsWith("plan-"));
+      let plansUploadSucceeded = true;
+      if (plansToUpload.length) {
+        const { error } = await supabase.from("food_plans").upsert(
+          plansToUpload.map(item => ({ user_id: user.id, food: item.food, amount: item.amount || null })),
+          { onConflict: "user_id,food" },
+        );
+        plansUploadSucceeded = !error;
+      }
+      const { data: cloudPlans } = await supabase.from("food_plans").select("id,food,amount,created_at").order("created_at");
+      if (cloudPlans) {
+        const deletedFoods = new Set(remainingPlanDeletes);
+        const localMergeBase = needsLegacyUpload ? localPlans : plansToUpload;
+        const mergedPlans = new Map(localMergeBase.map(item => [item.food, item]));
+        cloudPlans.filter(item => !deletedFoods.has(item.food)).forEach(item => mergedPlans.set(item.food, item));
+        savePlan([...mergedPlans.values()]);
+        if (plansUploadSucceeded) localStorage.setItem(planMigrationKey, "yes");
+      }
+
       const pending = readLocal(pendingKey, []);
       if (pending.length) {
         const rows = [];
@@ -1255,6 +1291,30 @@ function App() {
   }, []);
 
   /* --- 记一餐 --- */
+  const removePlan = async (item, { quiet = false } = {}) => {
+    savePlan(plan.filter(p => p.food !== item.food));
+    const queueDelete = () => writeLocal(planDeletesKey, [...new Set([...readLocal(planDeletesKey, []), item.food])]);
+    if (!navigator.onLine) {
+      queueDelete();
+      if (!quiet) setNotice("已从计划移除，联网后会同步给家人");
+      return;
+    }
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      queueDelete();
+      if (!quiet) setNotice("已从本机计划移除，登录后会同步");
+      return;
+    }
+    const { error } = await supabase.from("food_plans").delete().eq("user_id", user.id).eq("food", item.food);
+    if (error) queueDelete();
+    else {
+      const remaining = readLocal(planDeletesKey, []).filter(food => food !== item.food);
+      if (remaining.length) writeLocal(planDeletesKey, remaining);
+      else localStorage.removeItem(planDeletesKey);
+    }
+    if (!quiet) setNotice(error ? "已从计划移除，稍后自动同步" : "已从计划移除并同步给家人");
+  };
+
   const addMeal = async record => {
     const local = {
       food: record.food, amount_grams: record.amount_grams, reaction: record.reaction, note: record.note,
@@ -1263,11 +1323,8 @@ function App() {
     };
     saveMeals([...meals, local]);
     setSheetOpen(false);
-    setPlan(prev => {
-      const next = prev.filter(p => p.food !== record.food);
-      if (next.length !== prev.length) writeLocal(planKey, next);
-      return next;
-    });
+    const plannedItem = plan.find(item => item.food === record.food);
+    if (plannedItem) await removePlan(plannedItem, { quiet: true });
     const queue = () => writeLocal(pendingKey, [...readLocal(pendingKey, []), local]);
     if (!navigator.onLine) { queue(); setNotice("已离线保存，联网后自动同步"); return; }
     const { data: { user } } = await supabase.auth.getUser();
@@ -1353,10 +1410,19 @@ function App() {
   };
 
   /* --- 计划 --- */
-  const addToPlan = food => {
+  const addToPlan = async food => {
     if (plan.some(p => p.food === food.name)) { setNotice(`「${food.name}」已经在计划里了`); return; }
-    savePlan([...plan, { id: `plan-${Date.now()}`, food: food.name, amount: food.amount }]);
-    setNotice(`已把「${food.name}」加入计划`);
+    const localItem = { id: `plan-${Date.now()}`, food: food.name, amount: food.amount };
+    savePlan([...plan, localItem]);
+    if (!navigator.onLine) { setNotice(`已把「${food.name}」加入计划，联网后同步`); return; }
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) { setNotice(`已把「${food.name}」加入本机计划，登录后同步`); return; }
+    const { error } = await supabase.from("food_plans").upsert(
+      { user_id: user.id, food: food.name, amount: food.amount || null },
+      { onConflict: "user_id,food" },
+    );
+    if (error) setNotice(`已把「${food.name}」加入计划，稍后自动同步`);
+    else { setNotice(`已把「${food.name}」加入计划并同步给家人`); sync(); }
   };
 
   const syncTap = async () => {
@@ -1468,7 +1534,7 @@ function App() {
             </section>
           </>}
           {tab === "library" && <LibraryView library={library} months={months} tried={tried} onRecord={openRecord} onPlan={addToPlan} onEdit={f => setEditingFood({ mode: "edit", food: f })} onAdd={() => setEditingFood({ mode: "add" })} hiddenCount={customFoods.filter(c => c.hidden).length} onRestoreHidden={restoreHiddenFoods} babyName={babyName} />}
-          {tab === "plan" && <PlanView plan={plan} onRecord={openRecord} onRemove={item => savePlan(plan.filter(p => p.id !== item.id))} babyName={babyName} />}
+          {tab === "plan" && <PlanView plan={plan} onRecord={openRecord} onRemove={removePlan} babyName={babyName} />}
           {tab === "growth" && <GrowthView meals={meals} onOpenMeal={setDetailMeal} onAddFor={d => { setPrefill({ date: d }); setSheetOpen(true); }} babyName={babyName} />}
         </main>
         <AnimatePresence>
