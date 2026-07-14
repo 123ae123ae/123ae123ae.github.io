@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from "motion/react";
 import { createClient } from "@supabase/supabase-js";
 import {
   Activity, AlertTriangle, ArrowUp, Baby, CalendarDays, Camera, Check, ChevronLeft, ChevronRight,
-  ClipboardList, Library, Pencil, Plus, ShieldCheck, Sparkles, Sprout, Trash2, X,
+  ClipboardList, Library, LogOut, Mail, Pencil, Plus, RefreshCw, ShieldCheck, Sparkles, Sprout, Trash2, X,
 } from "lucide-react";
 
 const supabase = createClient("https://vqxzrydqnlpxyjafjdoh.supabase.co", "sb_publishable_Pn-dEaqu0oWYJ8eK8OgUAg_PPORfQFF");
@@ -134,7 +134,7 @@ const prepareFoodPhoto = file => new Promise((resolve, reject) => {
   reader.readAsDataURL(file);
 });
 
-function Header({ online, status, avatar, onAvatar, onCalendar, birth, onBirthChange, onSyncTap, onTopTap }) {
+function Header({ online, status, signedIn, avatar, onAvatar, onCalendar, birth, onBirthChange, onSyncTap, onTopTap }) {
   const months = ageMonths(birth);
   return (
     <header className="baby-header" onClick={e => {
@@ -156,9 +156,9 @@ function Header({ online, status, avatar, onAvatar, onCalendar, birth, onBirthCh
         <p>{fmtDateCN(todayKey())}</p>
       </div>
       <button className="calendar-button" onClick={onCalendar} aria-label="查看日历"><CalendarDays size={20} /></button>
-      <div className="family-sync" role="button" tabIndex={0} onClick={onSyncTap} onKeyDown={e => e.key === "Enter" && onSyncTap()} aria-label="家庭同步，点击登录或同步">
+      <div className={`family-sync ${signedIn ? "signed-in" : ""}`} role="button" tabIndex={0} onClick={onSyncTap} onKeyDown={e => e.key === "Enter" && onSyncTap()} aria-label={signedIn ? "已登录，查看家庭账号" : "未登录，点击登录同步"}>
         <span><Baby size={16} /></span><i /><span className="parent-two"><Baby size={16} /></span>
-        <small>{status || (online ? "点此登录同步" : "离线记录中")}</small>
+        <small>{signedIn ? (online ? status || "已登录 · 查看账号" : "已登录 · 当前离线") : (online ? "未登录 · 点此登录" : "未登录 · 离线记录")}</small>
       </div>
     </header>
   );
@@ -754,6 +754,7 @@ function App() {
   const [online, setOnline] = useState(navigator.onLine);
   const [notice, setNotice] = useState("");
   const [syncStatus, setSyncStatus] = useState("");
+  const [currentUser, setCurrentUser] = useState(null);
   const [showScrollTop, setShowScrollTop] = useState(false);
 
   const scrollToTop = () => {
@@ -849,6 +850,22 @@ function App() {
   };
 
   useEffect(() => {
+    let active = true;
+    supabase.auth.getSession().then(({ data }) => {
+      if (active) setCurrentUser(data.session?.user || null);
+    });
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (!active) return;
+      setCurrentUser(session?.user || null);
+      if (event === "SIGNED_OUT") setSyncStatus("");
+    });
+    return () => {
+      active = false;
+      subscription.unsubscribe();
+    };
+  }, []);
+
+  useEffect(() => {
     sync();
     const on = () => { setOnline(true); sync(); setNotice("已恢复网络，记录已同步"); };
     const off = () => { setOnline(false); setNotice("已进入离线模式，记录会稍后同步"); };
@@ -901,9 +918,11 @@ function App() {
   };
 
   const syncTap = async () => {
+    setAuthOpen(true);
+  };
+
+  const syncFromAccount = async () => {
     if (!navigator.onLine) { setNotice("现在离线，联网后会自动同步"); return; }
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) { setAuthOpen(true); return; }
     setNotice("正在同步…");
     await sync();
     setNotice("已和家人同步");
@@ -966,7 +985,7 @@ function App() {
         >
           {tab === "today" && <>
             <Header
-              online={online} status={syncStatus} avatar={avatar} onAvatar={changeAvatar}
+              online={online} status={syncStatus} signedIn={!!currentUser} avatar={avatar} onAvatar={changeAvatar}
               onCalendar={() => setCalendarOpen(true)} birth={birth} onSyncTap={syncTap}
               onTopTap={scrollToTop}
               onBirthChange={v => { setBirth(v); localStorage.setItem(birthKey, v); setNotice("出生日期已更新"); }}
@@ -1044,7 +1063,16 @@ function App() {
         <div><ShieldCheck />云端同步与离线记录</div>
       </aside>
       <AddMealDialog open={sheetOpen} prefill={prefill} onOpenChange={setSheetOpen} onSave={addMeal} />
-      <AuthDialog open={authOpen} onOpenChange={setAuthOpen} onSignedIn={() => { setAuthOpen(false); sync(); setNotice("登录成功，正在同步记录"); }} />
+      <AuthDialog
+        open={authOpen}
+        onOpenChange={setAuthOpen}
+        user={currentUser}
+        online={online}
+        pendingCount={readLocal(pendingKey, []).length}
+        onSync={syncFromAccount}
+        onSignedIn={user => { setCurrentUser(user); setAuthOpen(false); sync(); setNotice("登录成功，正在同步记录"); }}
+        onSignedOut={() => { setCurrentUser(null); setAuthOpen(false); setSyncStatus(""); setNotice("已退出这台设备，手机里的记录仍然保留"); }}
+      />
       <CalendarDialog open={calendarOpen} onOpenChange={setCalendarOpen} meals={meals} onAddFor={d => { setPrefill({ date: d }); setSheetOpen(true); }} />
       <MealDetailDialog meal={detailMeal} onClose={() => setDetailMeal(null)} onDelete={deleteMeal} />
       <FoodEditDialog editing={editingFood} onClose={() => setEditingFood(null)} onSave={saveFood} onDelete={deleteFood} />
@@ -1053,10 +1081,20 @@ function App() {
   );
 }
 
-function AuthDialog({ open, onOpenChange, onSignedIn }) {
+function AuthDialog({ open, onOpenChange, onSignedIn, onSignedOut, onSync, user, online, pendingCount }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [message, setMessage] = useState("");
+  const [signingOut, setSigningOut] = useState(false);
+  useEffect(() => { if (open) setMessage(""); }, [open, user]);
+  const logout = async () => {
+    setSigningOut(true);
+    setMessage("");
+    const { error } = await supabase.auth.signOut({ scope: "local" });
+    setSigningOut(false);
+    if (error) { setMessage(`退出失败：${error.message}`); return; }
+    onSignedOut();
+  };
   const login = async e => {
     e.preventDefault();
     setMessage("正在登录…");
@@ -1087,6 +1125,28 @@ function AuthDialog({ open, onOpenChange, onSignedIn }) {
     setMessage(data?.session ? "注册成功，已自动登录" : "注册成功！请打开邮箱里的确认链接，然后回来登录。");
     if (data?.session) onSignedIn(data.session.user);
   };
+  if (user) return (
+    <Dialog.Root open={open} onOpenChange={onOpenChange}>
+      <Dialog.Portal>
+        <Dialog.Overlay className="dialog-overlay" />
+        <Dialog.Content className="auth-card account-card">
+          <Dialog.Close className="icon-button auth-close" aria-label="关闭"><X size={18} /></Dialog.Close>
+          <div className="account-mark"><Baby size={25} /></div>
+          <div className="account-status"><i />家庭账号已登录</div>
+          <Dialog.Title>账号与同步</Dialog.Title>
+          <Dialog.Description>你和家人使用同一账号，就能看到 Elnaz 的相同记录。</Dialog.Description>
+          <div className="account-details">
+            <div><Mail size={17} /><span><small>当前账号</small><b>{user.email || "家庭账号"}</b></span></div>
+            <div><RefreshCw size={17} /><span><small>同步状态</small><b>{online ? (pendingCount ? `${pendingCount} 条记录等待同步` : "已联网，会自动同步") : "当前离线，联网后自动同步"}</b></span></div>
+          </div>
+          <button className="save-button" type="button" onClick={onSync} disabled={!online}><RefreshCw size={17} />{online ? "立即同步" : "当前处于离线状态"}</button>
+          <button className="logout-button" type="button" onClick={logout} disabled={signingOut}><LogOut size={17} />{signingOut ? "正在退出…" : "退出这台设备"}</button>
+          <p className="account-hint">只会退出当前设备，不会让家人的手机退出；本机已有记录也不会删除。</p>
+          <p className="auth-message">{message}</p>
+        </Dialog.Content>
+      </Dialog.Portal>
+    </Dialog.Root>
+  );
   return (
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
       <Dialog.Portal>
