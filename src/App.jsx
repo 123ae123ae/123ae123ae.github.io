@@ -1,9 +1,9 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import * as Dialog from "@radix-ui/react-dialog";
 import { motion, AnimatePresence } from "motion/react";
 import { createClient } from "@supabase/supabase-js";
 import {
-  Activity, AlertTriangle, Baby, CalendarDays, Camera, Check, ChevronLeft, ChevronRight,
+  Activity, AlertTriangle, ArrowUp, Baby, CalendarDays, Camera, Check, ChevronLeft, ChevronRight,
   ClipboardList, Library, Pencil, Plus, ShieldCheck, Sparkles, Sprout, Trash2, X,
 } from "lucide-react";
 
@@ -134,10 +134,12 @@ const prepareFoodPhoto = file => new Promise((resolve, reject) => {
   reader.readAsDataURL(file);
 });
 
-function Header({ online, status, avatar, onAvatar, onCalendar, birth, onBirthChange, onSyncTap }) {
+function Header({ online, status, avatar, onAvatar, onCalendar, birth, onBirthChange, onSyncTap, onTopTap }) {
   const months = ageMonths(birth);
   return (
-    <header className="baby-header">
+    <header className="baby-header" onClick={e => {
+      if (!e.target.closest("button,input,label,[role='button']")) onTopTap?.();
+    }}>
       <label className="avatar-editor" aria-label="更换 Elnaz 的头像">
         <img className="baby-avatar" src={avatar} alt="Elnaz 的头像" />
         <span><Camera size={13} /></span>
@@ -205,6 +207,7 @@ function MealTimeline({ meals, sortBy, onToggleSort, onOpenMeal, onViewAll }) {
             <div className="meal-copy">
               <h3>{meal.food}</h3>
               <p><b>{meal.amount_grams}克</b><span>{meal.reaction}</span></p>
+              {meal.remarks && <p className="meal-remarks" title={meal.remarks}>{meal.remarks}</p>}
             </div>
             <div className="meal-safe"><Check size={15} /><span>{meal.note || "无异常"}</span></div>
             <ChevronRight className="meal-chevron" size={20} />
@@ -234,6 +237,8 @@ function AddMealDialog({ open, prefill, onOpenChange, onSave }) {
   const [time, setTime] = useState(nowHHMM);
   const [reaction, setReaction] = useState("很喜欢");
   const [body, setBody] = useState("无异常");
+  const [source, setSource] = useState("自己制作");
+  const [remarks, setRemarks] = useState("");
   useEffect(() => {
     if (open) {
       setFood(prefill?.food || "");
@@ -242,13 +247,17 @@ function AddMealDialog({ open, prefill, onOpenChange, onSave }) {
       setTime(nowHHMM());
       setReaction("很喜欢");
       setBody("无异常");
+      setSource("自己制作");
+      setRemarks("");
     }
   }, [open, prefill]);
   return (
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
       <Dialog.Portal>
         <Dialog.Overlay className="dialog-overlay" />
-        <Dialog.Content className="meal-sheet">
+        <Dialog.Content className="meal-sheet add-meal-sheet" onPointerDown={e => {
+          if (!e.target.closest("input,textarea,button,select,label")) document.activeElement?.blur();
+        }}>
           <div className="sheet-grabber" />
           <div className="sheet-head">
             <div>
@@ -257,7 +266,7 @@ function AddMealDialog({ open, prefill, onOpenChange, onSave }) {
             </div>
             <Dialog.Close className="icon-button"><X size={20} /></Dialog.Close>
           </div>
-          <form onSubmit={e => { e.preventDefault(); if (food.trim()) onSave({ food: food.trim(), amount_grams: Number(amount) || 0, date, time, reaction, note: body }); }}>
+          <form onSubmit={e => { e.preventDefault(); if (food.trim()) onSave({ food: food.trim(), amount_grams: Number(amount) || 0, date, time, reaction, note: body, food_source: source, remarks: remarks.trim() }); }}>
             <label>吃了什么
               <input list="food-options" value={food} onChange={e => setFood(e.target.value)} placeholder="选择或输入食物名" required />
               <datalist id="food-options">
@@ -271,6 +280,23 @@ function AddMealDialog({ open, prefill, onOpenChange, onSave }) {
             <label>分量（克）<input type="number" min="1" max="1000" value={amount} onChange={e => setAmount(e.target.value)} /></label>
             <Choices title="喜欢程度" value={reaction} setValue={setReaction} items={["很喜欢", "愿意尝试", "一般般", "不太喜欢"]} />
             <Choices title="身体反应" value={body} setValue={setBody} items={["无异常", "皮肤反应", "消化不适", "需要观察"]} />
+            <Choices title="食物来源" value={source} setValue={setSource} items={["自己制作", "超市购买", "其他"]} />
+            <label>备注
+              <textarea
+                value={remarks}
+                onChange={e => setRemarks(e.target.value)}
+                onFocus={e => {
+                  const textarea = e.currentTarget;
+                  setTimeout(() => {
+                    if (!textarea.isConnected) return;
+                    textarea.scrollIntoView({ block: "center", behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
+                  }, 180);
+                }}
+                maxLength={2000}
+                rows={4}
+                placeholder="例如：自己制作的苹果泥，加入少量温水；或购买自 Carrefour 的宝宝辅食。"
+              />
+            </label>
             <button className="save-button" type="submit"><Check size={19} />保存这餐</button>
           </form>
         </Dialog.Content>
@@ -300,7 +326,9 @@ function MealDetailDialog({ meal, onClose, onDelete }) {
                 <li><span>分量</span><b>{meal.amount_grams} 克</b></li>
                 <li><span>喜欢程度</span><b>{meal.reaction}</b></li>
                 <li><span>身体反应</span><b>{meal.note || "无异常"}</b></li>
+                {meal.food_source && <li><span>食物来源</span><b>{meal.food_source}</b></li>}
               </ul>
+              {meal.remarks && <div className="detail-remarks"><span>备注</span><p>{meal.remarks}</p></div>}
             </div>
             <button className="danger-button" onClick={() => { if (confirm(`删除这条「${meal.food}」记录？`)) onDelete(meal); }}>
               <Trash2 size={17} />删除这条记录
@@ -701,6 +729,7 @@ function GrowthView({ meals, onOpenMeal, onAddFor }) {
 
 /* ---------- 主应用 ---------- */
 function App() {
+  const contentRef = useRef(null);
   const [meals, setMeals] = useState(() => {
     const all = readLocal(mealsKey, null);
     if (all) return all;
@@ -725,6 +754,14 @@ function App() {
   const [online, setOnline] = useState(navigator.onLine);
   const [notice, setNotice] = useState("");
   const [syncStatus, setSyncStatus] = useState("");
+  const [showScrollTop, setShowScrollTop] = useState(false);
+
+  const scrollToTop = () => {
+    contentRef.current?.scrollTo({
+      top: 0,
+      behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth",
+    });
+  };
 
   const months = ageMonths(birth);
   const library = useMemo(() => mergeLibrary(customFoods), [customFoods]);
@@ -824,6 +861,7 @@ function App() {
   const addMeal = async record => {
     const local = {
       food: record.food, amount_grams: record.amount_grams, reaction: record.reaction, note: record.note,
+      food_source: record.food_source, remarks: record.remarks,
       id: `local-${Date.now()}`, eaten_at: isoFor(record.date || todayKey(), record.time),
     };
     saveMeals([...meals, local]);
@@ -839,7 +877,8 @@ function App() {
     if (!user) { queue(); setNotice("已保存在本机，登录后可与家人同步"); return; }
     const { error } = await supabase.from("meals").insert({
       user_id: user.id, food: local.food, amount_grams: local.amount_grams,
-      eaten_at: local.eaten_at, reaction: local.reaction, note: local.note, emoji: emojiFor(local.food),
+      eaten_at: local.eaten_at, reaction: local.reaction, note: local.note,
+      food_source: local.food_source, remarks: local.remarks, emoji: emojiFor(local.food),
     });
     if (error) { queue(); setNotice("已保存在本机，稍后自动重试"); } else { setNotice("这一餐已同步给家人"); sync(); }
   };
@@ -916,11 +955,20 @@ function App() {
   return (
     <div className="app-shell">
       <div className="mobile-prototype">
-        <main className="content">
+        <button className="top-scroll-tap" onClick={scrollToTop} aria-label="滚动回顶部" />
+        <main
+          className="content"
+          ref={contentRef}
+          onScroll={e => setShowScrollTop(e.currentTarget.scrollTop > 280)}
+          onPointerDown={e => {
+            if (!e.target.closest("input,textarea,select,button,label,[role='button']")) document.activeElement?.blur();
+          }}
+        >
           {tab === "today" && <>
             <Header
               online={online} status={syncStatus} avatar={avatar} onAvatar={changeAvatar}
               onCalendar={() => setCalendarOpen(true)} birth={birth} onSyncTap={syncTap}
+              onTopTap={scrollToTop}
               onBirthChange={v => { setBirth(v); localStorage.setItem(birthKey, v); setNotice("出生日期已更新"); }}
             />
             <button className="primary-action" onClick={() => { setPrefill(null); setSheetOpen(true); }}><Plus size={25} />记录一餐</button>
@@ -962,6 +1010,16 @@ function App() {
           {tab === "plan" && <PlanView plan={plan} onRecord={openRecord} onRemove={item => savePlan(plan.filter(p => p.id !== item.id))} />}
           {tab === "growth" && <GrowthView meals={meals} onOpenMeal={setDetailMeal} onAddFor={d => { setPrefill({ date: d }); setSheetOpen(true); }} />}
         </main>
+        <AnimatePresence>
+          {showScrollTop && (
+            <motion.button
+              className="scroll-top-button"
+              onClick={scrollToTop}
+              aria-label="返回顶部"
+              initial={{ opacity: 0, scale: .92 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: .92 }}
+            ><ArrowUp size={18} /></motion.button>
+          )}
+        </AnimatePresence>
         <nav className="bottom-nav">
           {[["today", CalendarDays, "今天"], ["library", Library, "食物库"], ["plan", ClipboardList, "计划"], ["growth", Sprout, "成长"]].map(([key, Icon, label]) => (
             <button className={tab === key ? "active" : ""} key={key} onClick={() => setTab(key)}>
