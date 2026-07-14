@@ -438,17 +438,19 @@ function MealDetailDialog({ meal, onClose, onDelete }) {
         <Dialog.Content className="meal-sheet">
           <div className="sheet-grabber" />
           {meal && <>
-            <div className="sheet-head">
-              <div>
-                <Dialog.Title>{meal.food}</Dialog.Title>
-                <Dialog.Description>{fmtDateCN(dayKeyOf(meal.eaten_at))} {fmtTime(meal.eaten_at)}</Dialog.Description>
+            <div className="sheet-head detail-sheet-head">
+              <div className="detail-title-wrap">
+                <FoodPhoto food={meal.food} size={38} />
+                <div>
+                  <Dialog.Title>{meal.food}</Dialog.Title>
+                  <Dialog.Description>{fmtDateCN(dayKeyOf(meal.eaten_at))} {fmtTime(meal.eaten_at)}</Dialog.Description>
+                </div>
               </div>
               <Dialog.Close className="icon-button"><X size={20} /></Dialog.Close>
             </div>
-            <div className={`detail-body ${meal.photo_preview ? "has-meal-photo" : ""}`}>
-              {meal.photo_preview
-                ? <img className="meal-detail-photo" src={meal.photo_preview} alt={`${meal.food}的餐食照片`} />
-                : <FoodPhoto food={meal.food} size={72} />}
+            <div className={`detail-body ${meal.photo_preview ? "has-meal-photo" : "no-meal-photo"}`}>
+              {!meal.photo_preview && <FoodPhoto food={meal.food} size={72} />}
+              {meal.photo_preview && <img className="meal-detail-photo" src={meal.photo_preview} alt={`${meal.food}的餐食照片`} />}
               <ul>
                 <li><span>分量</span><b>{meal.amount_grams} 克</b></li>
                 <li><span>喜欢程度</span><b>{meal.reaction}</b></li>
@@ -792,7 +794,10 @@ function BigCalendar({ meals, onOpenMeal, onAddFor }) {
             <button
               key={d}
               className={`big-day ${k === selected ? "selected" : ""} ${k === todayKey() ? "today" : ""}`}
-              onClick={() => setSelected(k)}
+              onClick={() => {
+                setSelected(k);
+                if (list.length === 1) onOpenMeal(list[0]);
+              }}
               aria-label={`${month.getMonth() + 1}月${d}日，${list.length} 餐`}
             >
               <b>{d}</b>
