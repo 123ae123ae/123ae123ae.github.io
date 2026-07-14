@@ -12,6 +12,7 @@ const supabase = createClient("https://vqxzrydqnlpxyjafjdoh.supabase.co", "sb_pu
 /* ---------- 存储 ---------- */
 const mealsKey = "baby-meals-all-v3";
 const pendingKey = "baby-meals-pending-v2";
+const pendingUpdatesKey = "baby-meals-updates-v1";
 const legacyCacheKey = "baby-meals-cache-v2";
 const planKey = "baby-plan-v1";
 const customFoodsKey = "baby-custom-foods-v1";
@@ -294,6 +295,7 @@ function Choices({ title, value, setValue, items }) {
 }
 
 function AddMealDialog({ open, prefill, onOpenChange, onSave }) {
+  const editingMeal = prefill?.meal || null;
   const [food, setFood] = useState("");
   const [foodPickerOpen, setFoodPickerOpen] = useState(false);
   const [amount, setAmount] = useState(30);
@@ -307,16 +309,16 @@ function AddMealDialog({ open, prefill, onOpenChange, onSave }) {
   const [photoBusy, setPhotoBusy] = useState(false);
   useEffect(() => {
     if (open) {
-      setFood(prefill?.food || "");
+      setFood(editingMeal?.food || prefill?.food || "");
       setFoodPickerOpen(false);
-      setAmount(prefill?.amount || 30);
-      setDate(prefill?.date || todayKey());
-      setTime(nowHHMM());
-      setReaction("很喜欢");
-      setBody("无异常");
-      setSource("自己制作");
-      setRemarks("");
-      setPhoto(null);
+      setAmount(editingMeal?.amount_grams ?? prefill?.amount ?? 30);
+      setDate(editingMeal ? dayKeyOf(editingMeal.eaten_at) : (prefill?.date || todayKey()));
+      setTime(editingMeal ? fmtTime(editingMeal.eaten_at) : nowHHMM());
+      setReaction(editingMeal?.reaction || "很喜欢");
+      setBody(editingMeal?.note || "无异常");
+      setSource(editingMeal?.food_source || "自己制作");
+      setRemarks(editingMeal?.remarks || "");
+      setPhoto(editingMeal?.photo_preview || null);
       setPhotoBusy(false);
     }
   }, [open, prefill]);
@@ -344,12 +346,12 @@ function AddMealDialog({ open, prefill, onOpenChange, onSave }) {
           <div className="sheet-grabber" />
           <div className="sheet-head">
             <div>
-              <Dialog.Title>记录一餐</Dialog.Title>
-              <Dialog.Description>几步就能记好，常用选项已为你准备。</Dialog.Description>
+              <Dialog.Title>{editingMeal ? "编辑这餐" : "记录一餐"}</Dialog.Title>
+              <Dialog.Description>{editingMeal ? "修改后会同步更新这条餐食记录。" : "几步就能记好，常用选项已为你准备。"}</Dialog.Description>
             </div>
             <Dialog.Close className="icon-button"><X size={20} /></Dialog.Close>
           </div>
-          <form onSubmit={e => { e.preventDefault(); if (food.trim() && !photoBusy) onSave({ food: food.trim(), amount_grams: Number(amount) || 0, date, time, reaction, note: body, food_source: source, remarks: remarks.trim(), photo_preview: photo }); }}>
+          <form onSubmit={e => { e.preventDefault(); if (food.trim() && !photoBusy) onSave({ food: food.trim(), amount_grams: Number(amount) || 0, date, time, reaction, note: body, food_source: source, remarks: remarks.trim(), photo_preview: photo }, editingMeal); }}>
             <div className="food-field">
               <label htmlFor="meal-food">吃了什么</label>
               <div className="food-input-wrap">
@@ -422,7 +424,7 @@ function AddMealDialog({ open, prefill, onOpenChange, onSave }) {
                 placeholder="例如：自己制作的苹果泥，加入少量温水；或购买自 Carrefour 的宝宝辅食。"
               />
             </label>
-            <button className="save-button" type="submit" disabled={photoBusy}><Check size={19} />{photoBusy ? "正在准备照片…" : "保存这餐"}</button>
+            <button className="save-button" type="submit" disabled={photoBusy}><Check size={19} />{photoBusy ? "正在准备照片…" : editingMeal ? "保存修改" : "保存这餐"}</button>
           </form>
         </Dialog.Content>
       </Dialog.Portal>
@@ -430,7 +432,7 @@ function AddMealDialog({ open, prefill, onOpenChange, onSave }) {
   );
 }
 
-function MealDetailDialog({ meal, onClose, onDelete }) {
+function MealDetailDialog({ meal, onClose, onDelete, onEdit }) {
   const [viewerOpen, setViewerOpen] = useState(false);
   return (
     <>
@@ -466,6 +468,7 @@ function MealDetailDialog({ meal, onClose, onDelete }) {
               </ul>
               {meal.remarks && <div className="detail-remarks"><span>备注</span><p>{meal.remarks}</p></div>}
             </div>
+            <button className="edit-meal-button" onClick={() => onEdit(meal)}><Pencil size={17} />编辑这条记录</button>
             <button className="danger-button" onClick={() => { if (confirm(`删除这条「${meal.food}」记录？`)) onDelete(meal); }}>
               <Trash2 size={17} />删除这条记录
             </button>
@@ -1111,6 +1114,30 @@ function App() {
         const { error } = await supabase.from("meals").insert(rows);
         if (!error) localStorage.removeItem(pendingKey);
       }
+      const pendingUpdates = readLocal(pendingUpdatesKey, []);
+      if (pendingUpdates.length) {
+        const remainingUpdates = [];
+        for (const queued of pendingUpdates) {
+          try {
+            let photoPath = queued.photo_path || null;
+            if (queued.photo_changed) {
+              if (queued.photo_preview) photoPath = await uploadMealPhoto(user.id, { ...queued, photo_path: photoPath });
+              else if (photoPath) {
+                await supabase.storage.from("meal-photos").remove([photoPath]);
+                photoPath = null;
+              }
+            }
+            const { error } = await supabase.from("meals").update({
+              food: queued.food, amount_grams: queued.amount_grams, eaten_at: queued.eaten_at,
+              reaction: queued.reaction, note: queued.note, food_source: queued.food_source,
+              remarks: queued.remarks, photo_path: photoPath, emoji: emojiFor(queued.food),
+            }).eq("id", queued.id);
+            if (error) remainingUpdates.push(queued);
+          } catch { remainingUpdates.push(queued); }
+        }
+        if (remainingUpdates.length) writeLocal(pendingUpdatesKey, remainingUpdates);
+        else localStorage.removeItem(pendingUpdatesKey);
+      }
       const { data } = await supabase.from("meals").select("*").order("eaten_at");
       if (data) {
         const cachedMeals = new Map(readLocal(mealsKey, []).map(meal => [meal.id, meal]));
@@ -1124,7 +1151,11 @@ function App() {
           catch { return meal; }
         }));
         const stillPending = readLocal(pendingKey, []);
-        const merged = [...hydrated, ...stillPending];
+        const stillUpdates = new Map(readLocal(pendingUpdatesKey, []).map(meal => [meal.id, meal]));
+        const merged = [
+          ...hydrated.map(meal => stillUpdates.has(meal.id) ? { ...meal, ...stillUpdates.get(meal.id) } : meal),
+          ...stillPending,
+        ];
         saveMeals(merged);
         setSyncStatus("爸妈已同步");
       }
@@ -1184,9 +1215,66 @@ function App() {
     if (error) { queue(); setNotice("已保存在本机，稍后自动重试"); } else { setNotice("这一餐已同步给家人"); sync(); }
   };
 
+  const updateMeal = async (record, original) => {
+    const photoChanged = (record.photo_preview || null) !== (original.photo_preview || null);
+    const updated = {
+      ...original,
+      food: record.food,
+      amount_grams: record.amount_grams,
+      reaction: record.reaction,
+      note: record.note,
+      food_source: record.food_source,
+      remarks: record.remarks,
+      photo_preview: record.photo_preview || null,
+      photo_path: photoChanged && !record.photo_preview ? null : (original.photo_path || null),
+      eaten_at: isoFor(record.date || dayKeyOf(original.eaten_at), record.time),
+    };
+    saveMeals(meals.map(meal => meal.id === original.id ? updated : meal));
+    setSheetOpen(false);
+    setPrefill(null);
+
+    if (String(original.id).startsWith("local-")) {
+      const queued = readLocal(pendingKey, []);
+      writeLocal(pendingKey, queued.map(meal => meal.id === original.id ? updated : meal));
+      setNotice("记录已更新，登录联网后会同步");
+      return;
+    }
+
+    const queueUpdate = () => {
+      const queue = readLocal(pendingUpdatesKey, []).filter(meal => meal.id !== original.id);
+      writeLocal(pendingUpdatesKey, [...queue, { ...updated, photo_changed: photoChanged }]);
+    };
+    if (!navigator.onLine) { queueUpdate(); setNotice("修改已离线保存，联网后自动同步"); return; }
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) { queueUpdate(); setNotice("修改已保存在本机，登录后同步"); return; }
+
+    try {
+      let photoPath = original.photo_path || null;
+      if (photoChanged) {
+        if (updated.photo_preview) photoPath = await uploadMealPhoto(user.id, { ...updated, photo_path: photoPath });
+        else if (photoPath) {
+          await supabase.storage.from("meal-photos").remove([photoPath]);
+          photoPath = null;
+        }
+      }
+      const { error } = await supabase.from("meals").update({
+        food: updated.food, amount_grams: updated.amount_grams, eaten_at: updated.eaten_at,
+        reaction: updated.reaction, note: updated.note, food_source: updated.food_source,
+        remarks: updated.remarks, photo_path: photoPath, emoji: emojiFor(updated.food),
+      }).eq("id", original.id);
+      if (error) throw error;
+      if (photoPath !== updated.photo_path) saveMeals(meals.map(meal => meal.id === original.id ? { ...updated, photo_path: photoPath } : meal));
+      setNotice("这条记录已更新并同步给家人");
+    } catch {
+      queueUpdate();
+      setNotice("修改已保存在手机，稍后自动同步");
+    }
+  };
+
   const deleteMeal = async meal => {
     saveMeals(meals.filter(m => m.id !== meal.id));
     writeLocal(pendingKey, readLocal(pendingKey, []).filter(m => m.id !== meal.id));
+    writeLocal(pendingUpdatesKey, readLocal(pendingUpdatesKey, []).filter(m => m.id !== meal.id));
     setDetailMeal(null);
     if (!String(meal.id).startsWith("local-") && navigator.onLine) {
       await supabase.from("meals").delete().eq("id", meal.id);
@@ -1349,7 +1437,12 @@ function App() {
         <p>专为父母共同使用的宝宝辅食日记。</p>
         <div><ShieldCheck />云端同步与离线记录</div>
       </aside>
-      <AddMealDialog open={sheetOpen} prefill={prefill} onOpenChange={setSheetOpen} onSave={addMeal} />
+      <AddMealDialog
+        open={sheetOpen}
+        prefill={prefill}
+        onOpenChange={value => { setSheetOpen(value); if (!value) setPrefill(null); }}
+        onSave={(record, original) => original ? updateMeal(record, original) : addMeal(record)}
+      />
       <AuthDialog
         open={authOpen}
         onOpenChange={setAuthOpen}
@@ -1361,7 +1454,12 @@ function App() {
         onSignedOut={() => { setCurrentUser(null); setAuthOpen(false); setSyncStatus(""); setNotice("已退出这台设备，手机里的记录仍然保留"); }}
       />
       <CalendarDialog open={calendarOpen} onOpenChange={setCalendarOpen} meals={meals} onAddFor={d => { setPrefill({ date: d }); setSheetOpen(true); }} />
-      <MealDetailDialog meal={detailMeal} onClose={() => setDetailMeal(null)} onDelete={deleteMeal} />
+      <MealDetailDialog
+        meal={detailMeal}
+        onClose={() => setDetailMeal(null)}
+        onDelete={deleteMeal}
+        onEdit={meal => { setDetailMeal(null); setPrefill({ meal }); setSheetOpen(true); }}
+      />
       <FoodEditDialog editing={editingFood} onClose={() => setEditingFood(null)} onSave={saveFood} onDelete={deleteFood} />
       <InfoDialog info={info} onClose={() => setInfo(null)} />
     </div>
