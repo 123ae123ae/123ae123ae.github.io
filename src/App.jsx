@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from "motion/react";
 import { createClient } from "@supabase/supabase-js";
 import {
   Activity, AlertTriangle, ArrowUp, Baby, CalendarDays, Camera, Check, ChevronDown, ChevronLeft, ChevronRight,
-  ClipboardList, ImagePlus, Images, Library, LogOut, Mail, Pencil, Plus, RefreshCw, ShieldCheck, Sparkles, Sprout, Trash2, X,
+  ClipboardList, Download, ImagePlus, Images, Library, LogOut, Mail, Pencil, Plus, RefreshCw, Share2, ShieldCheck, Sparkles, Sprout, Trash2, X,
 } from "lucide-react";
 
 const supabase = createClient("https://vqxzrydqnlpxyjafjdoh.supabase.co", "sb_publishable_Pn-dEaqu0oWYJ8eK8OgUAg_PPORfQFF");
@@ -431,11 +431,13 @@ function AddMealDialog({ open, prefill, onOpenChange, onSave }) {
 }
 
 function MealDetailDialog({ meal, onClose, onDelete }) {
+  const [viewerOpen, setViewerOpen] = useState(false);
   return (
-    <Dialog.Root open={!!meal} onOpenChange={v => !v && onClose()}>
-      <Dialog.Portal>
-        <Dialog.Overlay className="dialog-overlay" />
-        <Dialog.Content className="meal-sheet">
+    <>
+      <Dialog.Root open={!!meal} onOpenChange={v => !v && onClose()}>
+        <Dialog.Portal>
+          <Dialog.Overlay className="dialog-overlay" />
+          <Dialog.Content className="meal-sheet">
           <div className="sheet-grabber" />
           {meal && <>
             <div className="sheet-head detail-sheet-head">
@@ -450,7 +452,12 @@ function MealDetailDialog({ meal, onClose, onDelete }) {
             </div>
             <div className={`detail-body ${meal.photo_preview ? "has-meal-photo" : "no-meal-photo"}`}>
               {!meal.photo_preview && <FoodPhoto food={meal.food} size={72} />}
-              {meal.photo_preview && <img className="meal-detail-photo" src={meal.photo_preview} alt={`${meal.food}的餐食照片`} />}
+              {meal.photo_preview && (
+                <button className="meal-detail-photo-button" onClick={() => setViewerOpen(true)} aria-label={`打开${meal.food}的照片`}>
+                  <img className="meal-detail-photo" src={meal.photo_preview} alt={`${meal.food}的餐食照片`} />
+                  <span>查看大图</span>
+                </button>
+              )}
               <ul>
                 <li><span>分量</span><b>{meal.amount_grams} 克</b></li>
                 <li><span>喜欢程度</span><b>{meal.reaction}</b></li>
@@ -463,6 +470,84 @@ function MealDetailDialog({ meal, onClose, onDelete }) {
               <Trash2 size={17} />删除这条记录
             </button>
           </>}
+          </Dialog.Content>
+        </Dialog.Portal>
+      </Dialog.Root>
+      <PhotoViewerDialog open={viewerOpen} onOpenChange={setViewerOpen} meal={meal} />
+    </>
+  );
+}
+
+const photoFilename = meal => {
+  const date = meal?.eaten_at ? dayKeyOf(meal.eaten_at) : todayKey();
+  const food = String(meal?.food || "餐食").replace(/[\\/:*?"<>|]/g, "-");
+  return `Elnaz-${date}-${food}.webp`;
+};
+
+async function saveMealPhoto(meal) {
+  const blob = await dataUrlToBlob(meal.photo_preview);
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = photoFilename(meal);
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+function PhotoViewerDialog({ open, onOpenChange, meal }) {
+  const [message, setMessage] = useState("");
+  useEffect(() => { if (open) setMessage(""); }, [open]);
+  if (!meal?.photo_preview) return null;
+
+  const sharePhoto = async () => {
+    try {
+      const blob = await dataUrlToBlob(meal.photo_preview);
+      const file = new File([blob], photoFilename(meal), { type: blob.type || "image/webp" });
+      if (navigator.share && navigator.canShare?.({ files: [file] })) {
+        await navigator.share({
+          files: [file],
+          title: `${meal.food} · Elnaz 的辅食记录`,
+          text: `${fmtDateCN(dayKeyOf(meal.eaten_at))} ${fmtTime(meal.eaten_at)}`,
+        });
+      } else {
+        await saveMealPhoto(meal);
+        setMessage("当前浏览器不支持图片分享，已改为保存照片");
+      }
+    } catch (error) {
+      if (error?.name !== "AbortError") setMessage("暂时无法分享，请使用保存照片");
+    }
+  };
+
+  const savePhoto = async () => {
+    try {
+      await saveMealPhoto(meal);
+      setMessage("照片已开始保存");
+    } catch {
+      setMessage("保存失败，请长按照片保存");
+    }
+  };
+
+  return (
+    <Dialog.Root open={open} onOpenChange={onOpenChange}>
+      <Dialog.Portal>
+        <Dialog.Overlay className="photo-viewer-overlay" />
+        <Dialog.Content className="photo-viewer">
+          <Dialog.Title className="sr-only">{meal.food}的餐食照片</Dialog.Title>
+          <Dialog.Description className="sr-only">查看、分享或保存这张餐食照片</Dialog.Description>
+          <div className="photo-viewer-head">
+            <div><b>{meal.food}</b><small>{fmtDateCN(dayKeyOf(meal.eaten_at))} · {fmtTime(meal.eaten_at)}</small></div>
+            <Dialog.Close aria-label="关闭照片"><X size={22} /></Dialog.Close>
+          </div>
+          <div className="photo-viewer-stage">
+            <img src={meal.photo_preview} alt={`${meal.food}的原始餐食照片`} />
+          </div>
+          <div className="photo-viewer-actions">
+            <button onClick={sharePhoto}><Share2 size={19} /><span>分享照片</span></button>
+            <button onClick={savePhoto}><Download size={19} /><span>保存照片</span></button>
+          </div>
+          <p className="photo-viewer-message" aria-live="polite">{message || "也可以长按照片使用手机菜单"}</p>
         </Dialog.Content>
       </Dialog.Portal>
     </Dialog.Root>
@@ -834,11 +919,13 @@ function BigCalendar({ meals, onOpenMeal, onAddFor }) {
 }
 
 function PhotoWallDialog({ open, onOpenChange, meals, onOpenMeal }) {
+  const [viewerMeal, setViewerMeal] = useState(null);
   const photos = useMemo(
     () => meals.filter(meal => meal.photo_preview).sort((a, b) => new Date(b.eaten_at) - new Date(a.eaten_at)),
     [meals],
   );
   return (
+    <>
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
       <Dialog.Portal>
         <Dialog.Overlay className="dialog-overlay" />
@@ -855,7 +942,7 @@ function PhotoWallDialog({ open, onOpenChange, meals, onOpenMeal }) {
             {photos.length ? (
               <div className="photo-wall-grid">
                 {photos.map(meal => (
-                  <button key={meal.id} onClick={() => { onOpenChange(false); onOpenMeal(meal); }}>
+                  <button key={meal.id} onClick={() => setViewerMeal(meal)} aria-label={`打开${meal.food}的照片`}>
                     <img src={meal.photo_preview} alt={`${meal.food}的餐食照片`} />
                     <span><b>{meal.food}</b><small>{fmtDateCN(dayKeyOf(meal.eaten_at)).replace(" · ", " ")} · {fmtTime(meal.eaten_at)}</small></span>
                   </button>
@@ -868,6 +955,8 @@ function PhotoWallDialog({ open, onOpenChange, meals, onOpenMeal }) {
         </Dialog.Content>
       </Dialog.Portal>
     </Dialog.Root>
+    <PhotoViewerDialog open={!!viewerMeal} onOpenChange={value => !value && setViewerMeal(null)} meal={viewerMeal} />
+    </>
   );
 }
 
