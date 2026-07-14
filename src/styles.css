@@ -136,3 +136,19 @@
 .cat-chips button.selected{border-color:var(--sage);background:var(--sage);color:#fff;font-weight:600}
 .fr-name{font-style:normal;font-size:10px;color:#a5a19a;font-weight:400}
 .try-tag{font-style:normal;font-size:9px;padding:2px 6px;border-radius:8px;font-weight:500;background:#fdf3e0;color:#c98a2b}
+
+/* ---------- 手机端食物选择器 ---------- */
+.food-field{position:relative;margin-top:16px}
+.food-field>label{margin-top:0}
+.food-input-wrap{position:relative}
+.food-input-wrap input{padding-right:52px}
+.food-picker-toggle{position:absolute;right:1px;top:8px;width:45px;height:44px;border:0;border-left:1px solid var(--line);border-radius:0 11px 11px 0;background:#fff;color:var(--ink);display:grid;place-items:center}
+.food-picker-toggle svg{transition:transform .18s ease}
+.food-picker-toggle[aria-expanded="true"] svg{transform:rotate(180deg)}
+.food-picker-menu{position:absolute;z-index:30;top:calc(100% + 7px);left:0;right:0;max-height:245px;overflow-y:auto;overscroll-behavior:contain;background:#fff;border:1px solid var(--line);border-radius:14px;padding:6px;box-shadow:0 14px 35px rgba(58,55,49,.14)}
+.food-picker-menu button{width:100%;min-height:44px;border:0;border-radius:10px;background:transparent;display:grid;grid-template-columns:30px auto 1fr;align-items:center;gap:7px;padding:6px 9px;text-align:left;color:var(--ink)}
+.food-picker-menu button:active,.food-picker-menu button[aria-selected="true"]{background:var(--sage-soft)}
+.food-picker-menu button>span{font-size:20px}
+.food-picker-menu button>b{font-size:12px}
+.food-picker-menu button>small{font-size:10px;color:var(--muted);text-align:right}
+.food-picker-menu>p{font-size:11px;color:var(--muted);text-align:center;padding:14px 8px;margin:0}

@@ -3,7 +3,7 @@ import * as Dialog from "@radix-ui/react-dialog";
 import { motion, AnimatePresence } from "motion/react";
 import { createClient } from "@supabase/supabase-js";
 import {
-  Activity, AlertTriangle, ArrowUp, Baby, CalendarDays, Camera, Check, ChevronLeft, ChevronRight,
+  Activity, AlertTriangle, ArrowUp, Baby, CalendarDays, Camera, Check, ChevronDown, ChevronLeft, ChevronRight,
   ClipboardList, Library, LogOut, Mail, Pencil, Plus, RefreshCw, ShieldCheck, Sparkles, Sprout, Trash2, X,
 } from "lucide-react";
 
@@ -232,6 +232,7 @@ function Choices({ title, value, setValue, items }) {
 
 function AddMealDialog({ open, prefill, onOpenChange, onSave }) {
   const [food, setFood] = useState("");
+  const [foodPickerOpen, setFoodPickerOpen] = useState(false);
   const [amount, setAmount] = useState(30);
   const [date, setDate] = useState(todayKey);
   const [time, setTime] = useState(nowHHMM);
@@ -242,6 +243,7 @@ function AddMealDialog({ open, prefill, onOpenChange, onSave }) {
   useEffect(() => {
     if (open) {
       setFood(prefill?.food || "");
+      setFoodPickerOpen(false);
       setAmount(prefill?.amount || 30);
       setDate(prefill?.date || todayKey());
       setTime(nowHHMM());
@@ -251,12 +253,18 @@ function AddMealDialog({ open, prefill, onOpenChange, onSave }) {
       setRemarks("");
     }
   }, [open, prefill]);
+  const foodOptions = useMemo(() => {
+    const query = food.trim().toLocaleLowerCase();
+    if (!query) return mergedLibrary.slice(0, 60);
+    return mergedLibrary.filter(item => `${item.name} ${item.fr || ""}`.toLocaleLowerCase().includes(query)).slice(0, 60);
+  }, [food, open]);
   return (
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
       <Dialog.Portal>
         <Dialog.Overlay className="dialog-overlay" />
         <Dialog.Content className="meal-sheet add-meal-sheet" onPointerDown={e => {
           if (!e.target.closest("input,textarea,button,select,label")) document.activeElement?.blur();
+          if (!e.target.closest(".food-field")) setFoodPickerOpen(false);
         }}>
           <div className="sheet-grabber" />
           <div className="sheet-head">
@@ -267,12 +275,44 @@ function AddMealDialog({ open, prefill, onOpenChange, onSave }) {
             <Dialog.Close className="icon-button"><X size={20} /></Dialog.Close>
           </div>
           <form onSubmit={e => { e.preventDefault(); if (food.trim()) onSave({ food: food.trim(), amount_grams: Number(amount) || 0, date, time, reaction, note: body, food_source: source, remarks: remarks.trim() }); }}>
-            <label>吃了什么
-              <input list="food-options" value={food} onChange={e => setFood(e.target.value)} placeholder="选择或输入食物名" required />
-              <datalist id="food-options">
-                {mergedLibrary.map(f => <option key={f.name} value={f.name} />)}
-              </datalist>
-            </label>
+            <div className="food-field">
+              <label htmlFor="meal-food">吃了什么</label>
+              <div className="food-input-wrap">
+                <input
+                  id="meal-food"
+                  value={food}
+                  onChange={e => { setFood(e.target.value); setFoodPickerOpen(true); }}
+                  onFocus={() => !food && setFoodPickerOpen(true)}
+                  placeholder="选择或输入食物名"
+                  autoComplete="off"
+                  required
+                />
+                <button
+                  className="food-picker-toggle"
+                  type="button"
+                  aria-label="打开食物选择列表"
+                  aria-expanded={foodPickerOpen}
+                  onClick={() => setFoodPickerOpen(value => !value)}
+                ><ChevronDown size={18} /></button>
+                {foodPickerOpen && (
+                  <div className="food-picker-menu" role="listbox" aria-label="选择食物">
+                    {foodOptions.length ? foodOptions.map(item => (
+                      <button
+                        type="button"
+                        role="option"
+                        aria-selected={food === item.name}
+                        key={`${item.baseName || item.name}-${item.name}`}
+                        onClick={() => { setFood(item.name); setFoodPickerOpen(false); }}
+                      >
+                        <span>{item.emoji || "🥣"}</span>
+                        <b>{item.name}</b>
+                        {item.fr && <small>{item.fr}</small>}
+                      </button>
+                    )) : <p>没有找到，可以直接使用输入的名称</p>}
+                  </div>
+                )}
+              </div>
+            </div>
             <div className="form-grid">
               <label>日期（可补记过去）<input type="date" value={date} max={todayKey()} onChange={e => setDate(e.target.value)} /></label>
               <label>时间<input type="time" value={time} onChange={e => setTime(e.target.value)} /></label>
