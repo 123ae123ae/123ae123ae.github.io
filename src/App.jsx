@@ -847,22 +847,24 @@ function PhotoWallDialog({ open, onOpenChange, meals, onOpenMeal }) {
           <div className="sheet-head">
             <div>
               <Dialog.Title>Elnaz 的餐食照片</Dialog.Title>
-              <Dialog.Description>{photos.length ? `珍藏了 ${photos.length} 个可爱的吃饭瞬间` : "以后记录的餐食照片会收藏在这里"}</Dialog.Description>
+              <Dialog.Description>{photos.length ? `共 ${photos.length} 张 · 上下滑动查看全部照片` : "以后记录的餐食照片会收藏在这里"}</Dialog.Description>
             </div>
             <Dialog.Close className="icon-button"><X size={20} /></Dialog.Close>
           </div>
-          {photos.length ? (
-            <div className="photo-wall-grid">
-              {photos.map(meal => (
-                <button key={meal.id} onClick={() => { onOpenChange(false); onOpenMeal(meal); }}>
-                  <img src={meal.photo_preview} alt={`${meal.food}的餐食照片`} />
-                  <span><b>{meal.food}</b><small>{fmtDateCN(dayKeyOf(meal.eaten_at)).replace(" · ", " ")} · {fmtTime(meal.eaten_at)}</small></span>
-                </button>
-              ))}
-            </div>
-          ) : (
-            <div className="photo-wall-empty"><span><Images size={28} /></span><b>照片墙还是空的</b><p>记录一餐时添加照片，就能慢慢收集 Elnaz 的辅食回忆。</p></div>
-          )}
+          <div className="photo-wall-scroll">
+            {photos.length ? (
+              <div className="photo-wall-grid">
+                {photos.map(meal => (
+                  <button key={meal.id} onClick={() => { onOpenChange(false); onOpenMeal(meal); }}>
+                    <img src={meal.photo_preview} alt={`${meal.food}的餐食照片`} />
+                    <span><b>{meal.food}</b><small>{fmtDateCN(dayKeyOf(meal.eaten_at)).replace(" · ", " ")} · {fmtTime(meal.eaten_at)}</small></span>
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <div className="photo-wall-empty"><span><Images size={28} /></span><b>照片墙还是空的</b><p>记录一餐时添加照片，就能慢慢收集 Elnaz 的辅食回忆。</p></div>
+            )}
+          </div>
         </Dialog.Content>
       </Dialog.Portal>
     </Dialog.Root>
