@@ -6,7 +6,7 @@ import { chooseActiveBaby, chooseActiveFamily, recordScope, scopedStorageKey } f
 import { languages, normalizeLocale, translate } from "./i18n.js";
 import {
   Activity, AlertTriangle, ArrowUp, Baby, CalendarDays, Camera, Check, ChevronDown, ChevronLeft, ChevronRight,
-  ClipboardList, Copy, Download, Home, ImagePlus, Images, Languages, Library, LogOut, Mail, Pencil, Plus, RefreshCw, Settings, Share2, ShieldCheck, Sparkles, Sprout, Trash2, UserPlus, Users, X,
+  ClipboardList, Copy, Download, Home, ImagePlus, Images, Languages, Library, LogOut, Mail, Pencil, Plus, RefreshCw, Settings, Share2, ShieldCheck, Sparkles, Sprout, Trash2, UserPlus, UserRound, Users, X,
 } from "lucide-react";
 
 const supabase = createClient("https://vqxzrydqnlpxyjafjdoh.supabase.co", "sb_publishable_Pn-dEaqu0oWYJ8eK8OgUAg_PPORfQFF");
@@ -1094,7 +1094,14 @@ const friendlyFamilyError = error => {
 
 function FamilyOnboarding({ user, inviteToken, onCreate, onAcceptInvite, onOpenAuth, busy, message, locale }) {
   const [familyName, setFamilyName] = useState("我们的家庭");
+  const [inviteName, setInviteName] = useState("");
+  const [inviteRelationship, setInviteRelationship] = useState("");
   const t = key => translate(locale, key);
+  useEffect(() => {
+    if (!inviteToken || !user) return;
+    setInviteName(user.user_metadata?.display_name || "");
+    setInviteRelationship(user.user_metadata?.relationship || "");
+  }, [inviteToken, user?.id]);
   return (
     <div className="family-gate">
       <div className="family-gate-card">
@@ -1106,9 +1113,12 @@ function FamilyOnboarding({ user, inviteToken, onCreate, onAcceptInvite, onOpenA
         ) : <>
           {inviteToken && (
             <section className="invite-gate-card">
-              <UserPlus size={20} />
-              <div><b>{t("joinFamily")}</b><small>邀请会验证登录邮箱、有效期和使用状态。</small></div>
-              <button onClick={onAcceptInvite} disabled={busy}>接受邀请</button>
+              <div className="invite-gate-title"><UserPlus size={20} /><span><b>{t("joinFamily")}</b><small>加入前确认你在家庭中显示的资料。</small></span></div>
+              <div className="invite-profile-grid">
+                <label>你的称呼<input value={inviteName} onChange={e => setInviteName(e.target.value)} maxLength={60} placeholder="例如：Sara" required /></label>
+                <label>家庭身份<input value={inviteRelationship} onChange={e => setInviteRelationship(e.target.value)} maxLength={40} placeholder="例如：妈妈" required /></label>
+              </div>
+              <button onClick={() => onAcceptInvite({ displayName: inviteName.trim(), relationship: inviteRelationship.trim() })} disabled={busy || !inviteName.trim() || !inviteRelationship.trim()}>{busy ? "正在加入…" : "确认并加入家庭"}</button>
             </section>
           )}
           <form onSubmit={e => { e.preventDefault(); onCreate(familyName); }}>
@@ -1198,6 +1208,9 @@ function BabyManagerDialog({ open, onOpenChange, family, role, babies, activeBab
 
 function FamilySettingsDialog({ open, onOpenChange, user, family, membership, memberships = [], locale, onLocale, onSwitchFamily, onReload, onSignedOut }) {
   const [members, setMembers] = useState([]);
+  const [profileName, setProfileName] = useState("");
+  const [relationship, setRelationship] = useState("");
+  const [familyName, setFamilyName] = useState("");
   const [email, setEmail] = useState("");
   const [inviteLink, setInviteLink] = useState("");
   const [message, setMessage] = useState("");
@@ -1208,9 +1221,41 @@ function FamilySettingsDialog({ open, onOpenChange, user, family, membership, me
   const loadMembers = async () => {
     if (!family?.id) return;
     const { data, error } = await supabase.rpc("list_family_members", { p_family_id: family.id });
-    if (error) setMessage(friendlyFamilyError(error)); else setMembers(data || []);
+    if (error) { setMessage(friendlyFamilyError(error)); return; }
+    const nextMembers = data || [];
+    setMembers(nextMembers);
+    const mine = nextMembers.find(member => member.user_id === user?.id);
+    setProfileName(mine?.display_name || user?.user_metadata?.display_name || "");
+    setRelationship(mine?.relationship || user?.user_metadata?.relationship || "");
   };
-  useEffect(() => { if (open) { setMessage(""); setInviteLink(""); loadMembers(); } }, [open, family?.id]);
+  useEffect(() => { if (open) { setMessage(""); setInviteLink(""); setFamilyName(family?.name || ""); loadMembers(); } }, [open, family?.id]);
+  const saveProfile = async e => {
+    e.preventDefault();
+    const nextName = profileName.trim();
+    const nextRelationship = relationship.trim();
+    if (!nextName || !nextRelationship) { setMessage("请填写你的称呼和家庭身份"); return; }
+    setBusy(true); setMessage("");
+    const [{ error: profileError }, { error: authError }] = await Promise.all([
+      supabase.rpc("update_my_family_profile", { p_family_id: family.id, p_display_name: nextName, p_relationship: nextRelationship }),
+      supabase.auth.updateUser({ data: { display_name: nextName, relationship: nextRelationship } }),
+    ]);
+    setBusy(false);
+    const error = profileError || authError;
+    if (error) { setMessage(friendlyFamilyError(error)); return; }
+    setMessage("个人资料已保存，家人会看到新的称呼和身份");
+    await loadMembers();
+  };
+  const saveFamilyName = async e => {
+    e.preventDefault();
+    const nextName = familyName.trim();
+    if (!nextName) { setMessage("请填写家庭名称"); return; }
+    setBusy(true); setMessage("");
+    const { error } = await supabase.from("families").update({ name: nextName, updated_at: new Date().toISOString() }).eq("id", family.id);
+    setBusy(false);
+    if (error) { setMessage(friendlyFamilyError(error)); return; }
+    setMessage("家庭名称已修改");
+    await onReload();
+  };
   const invite = async e => {
     e.preventDefault(); setBusy(true); setMessage("");
     const { data, error } = await supabase.rpc("create_family_invitation", { p_family_id: family.id, p_email: email.trim() });
@@ -1262,10 +1307,23 @@ function FamilySettingsDialog({ open, onOpenChange, user, family, membership, me
   return (
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
       <Dialog.Portal><Dialog.Overlay className="dialog-overlay" /><Dialog.Content className="meal-sheet family-settings-sheet">
-        <div className="sheet-grabber" /><div className="sheet-head"><div><Dialog.Title>{t("familySettings")}</Dialog.Title><Dialog.Description>{family?.name} · {t(role || "member")}</Dialog.Description></div><Dialog.Close className="icon-button"><X size={20} /></Dialog.Close></div>
+        <div className="sheet-grabber" /><div className="sheet-head"><div><Dialog.Title>{t("familySettings")}</Dialog.Title><Dialog.Description>{family?.name} · 你的权限：{t(role || "member")}</Dialog.Description></div><Dialog.Close className="icon-button"><X size={20} /></Dialog.Close></div>
         {memberships.length > 1 && <section className="settings-section"><h3><Home size={17} />当前家庭</h3><select value={family.id} onChange={e => onSwitchFamily(e.target.value)}>{memberships.map(item => <option key={item.family_id} value={item.family_id}>{item.family?.name || "家庭"}</option>)}</select></section>}
+        <section className="settings-section"><h3><UserRound size={17} />我的家庭资料</h3>
+          <form className="settings-profile-form" onSubmit={saveProfile}>
+            <label>我的称呼<input value={profileName} onChange={e => setProfileName(e.target.value)} maxLength={60} placeholder="例如：Wayo" required /></label>
+            <label>家庭身份<input value={relationship} onChange={e => setRelationship(e.target.value)} maxLength={40} placeholder="例如：爸爸" required /></label>
+            <button className="compact-save" disabled={busy}>保存我的资料</button>
+          </form>
+          <p className="settings-help">“爸爸/妈妈”是家庭身份；“所有者/管理员/成员”是操作权限，两者互不影响。</p>
+        </section>
+        <section className="settings-section"><h3><Home size={17} />家庭名称</h3>
+          {canManage ? <form className="settings-inline-form" onSubmit={saveFamilyName}><input value={familyName} onChange={e => setFamilyName(e.target.value)} maxLength={80} required /><button disabled={busy}>修改</button></form> : <p className="settings-account-email">{family?.name}</p>}
+          <p className="settings-help">这是全家共同看到的标题，例如“Elnaz 的家庭”，不是成员姓名。</p>
+        </section>
         <section className="settings-section"><h3><Users size={17} />{t("familyMembers")}</h3>
-          <div className="member-list">{members.map(member => <article key={member.user_id}><span className="member-avatar">{(member.display_name || member.email || "家")[0]}</span><div><b>{member.display_name || member.email}</b><small>{member.email} · {t(member.role)}</small></div>{role === "owner" && member.role !== "owner" && <div className="member-actions"><select value={member.role} onChange={e => changeRole(member,e.target.value)}><option value="admin">{t("admin")}</option><option value="member">{t("member")}</option></select><button onClick={() => transfer(member)}>转让</button><button onClick={() => removeMember(member)}>移除</button></div>}</article>)}</div>
+          <div className="member-list">{members.map(member => <article key={member.user_id}><span className="member-avatar">{(member.display_name || member.email || "家")[0]}</span><div><b>{member.display_name || member.email}{member.user_id === user.id && <em className="you-tag">你</em>}</b><small>{member.relationship || "家庭成员"} · {t(member.role)}</small><small>{member.email}</small></div>{role === "owner" && member.role !== "owner" && <div className="member-actions"><select value={member.role} onChange={e => changeRole(member,e.target.value)}><option value="admin">{t("admin")}</option><option value="member">{t("member")}</option></select><button onClick={() => transfer(member)}>转让</button><button onClick={() => removeMember(member)}>移除</button></div>}</article>)}</div>
+          {!members.length && <p className="settings-help">家庭成员资料正在加载；已加入的家人会显示在这里。</p>}
           {canManage && <form className="invite-form" onSubmit={invite}><label>家人的邮箱<input type="email" value={email} onChange={e => setEmail(e.target.value)} required /></label><button className="save-button" disabled={busy}><UserPlus size={17} />{t("inviteMember")}</button></form>}
           {inviteLink && <div className="invite-link"><input value={inviteLink} readOnly /><button onClick={async () => { await navigator.clipboard.writeText(inviteLink); setMessage("邀请链接已复制"); }}><Copy size={15} />复制</button></div>}
         </section>
@@ -1411,7 +1469,7 @@ function App() {
       setMemberships([]); setActiveMembership(null); setActiveFamily(null); setBabies([]); setActiveBaby(null); setFamilyLoading(false); return null;
     }
     const [{ data: membershipRows, error: membershipError }, { data: preference }] = await Promise.all([
-      supabase.from("family_members").select("family_id,role,joined_at,families!inner(id,name,owner_id,created_at,updated_at)").eq("user_id", user.id).order("joined_at"),
+      supabase.from("family_members").select("family_id,role,relationship,joined_at,families!inner(id,name,owner_id,created_at,updated_at)").eq("user_id", user.id).order("joined_at"),
       supabase.from("user_preferences").select("active_family_id,active_baby_id,locale").eq("user_id", user.id).maybeSingle(),
     ]);
     if (membershipError) { setFamilyGateMessage("家庭资料暂时无法加载，请检查网络"); setFamilyLoading(false); return null; }
@@ -1788,10 +1846,10 @@ function App() {
     setFamilyBusy(false);
   };
 
-  const acceptInvite = async () => {
+  const acceptInvite = async ({ displayName, relationship } = {}) => {
     if (!inviteToken) return;
     setFamilyBusy(true); setFamilyGateMessage("");
-    const { error } = await supabase.rpc("accept_family_invitation", { p_token: inviteToken });
+    const { error } = await supabase.rpc("accept_family_invitation", { p_token: inviteToken, p_display_name: displayName, p_relationship: relationship });
     if (error) setFamilyGateMessage(friendlyFamilyError(error));
     else {
       history.replaceState({}, "", location.pathname);
@@ -2082,11 +2140,13 @@ function AuthDialog({ open, onOpenChange, onSignedIn, onSignedOut, onSync, user,
   const [signingOut, setSigningOut] = useState(false);
   const [signupMode, setSignupMode] = useState(false);
   const [signupName, setSignupName] = useState("");
+  const [signupRelationship, setSignupRelationship] = useState("");
   useEffect(() => {
     if (open) {
       setMessage("");
       setSignupMode(false);
       setSignupName("");
+      setSignupRelationship("");
     }
   }, [open, user]);
   const logout = async () => {
@@ -2113,11 +2173,12 @@ function AuthDialog({ open, onOpenChange, onSignedIn, onSignedOut, onSync, user,
     if (!/.+@.+\..+/.test(email)) { setMessage("请先填写正确的邮箱地址"); return; }
     if (password.length < 6) { setMessage("密码至少要 6 位"); return; }
     if (!signupName.trim()) { setMessage("请填写你的称呼"); return; }
+    if (!signupRelationship.trim()) { setMessage("请填写你在家庭中的身份"); return; }
     setMessage("正在创建个人账号…");
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
-      options: { data: { display_name: signupName.trim() } },
+      options: { data: { display_name: signupName.trim(), relationship: signupRelationship.trim() } },
     });
     if (error) {
       const msg = error.message || "";
@@ -2166,7 +2227,8 @@ function AuthDialog({ open, onOpenChange, onSignedIn, onSignedOut, onSync, user,
           <Dialog.Description>{signupMode ? "每位家长创建自己的账号，之后再创建或加入家庭。" : `登录后，可通过家庭安全共享宝宝的辅食记录。`}</Dialog.Description>
           <form onSubmit={signupMode ? signup : login}>
             {signupMode && <div className="signup-profile-fields">
-              <label>你的称呼<input value={signupName} onChange={e => setSignupName(e.target.value)} maxLength={60} autoComplete="name" placeholder="例如：Elnaz 妈妈" required /></label>
+              <label>你的称呼<input value={signupName} onChange={e => setSignupName(e.target.value)} maxLength={60} autoComplete="name" placeholder="例如：Sara" required /></label>
+              <label>家庭身份<input value={signupRelationship} onChange={e => setSignupRelationship(e.target.value)} maxLength={40} placeholder="例如：妈妈" required /></label>
             </div>}
             <label>邮箱<input type="email" value={email} onChange={e => setEmail(e.target.value)} required /></label>
             <label>密码<input type="password" minLength="6" autoComplete={signupMode ? "new-password" : "current-password"} value={password} onChange={e => setPassword(e.target.value)} required /></label>
