@@ -24,3 +24,7 @@ export const removeBabyFromContext = (babies, deletedBabyId, activeBabyId) => {
 export const recordsForBaby = (records, familyId, babyId) => records.filter((record) => record.family_id === familyId && record.baby_id === babyId);
 
 export const makeScopedRecord = (record, family, baby, userId) => ({ ...record, ...recordScope(family, baby, userId) });
+
+export const normalizeInviteCode = value => String(value || "").toUpperCase().replace(/[^0-9A-F]/g, "").slice(0, 12);
+
+export const formatInviteCode = value => normalizeInviteCode(value).replace(/(.{4})(?=.)/g, "$1-");

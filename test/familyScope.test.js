@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { chooseActiveBaby, chooseActiveFamily, makeScopedRecord, recordScope, recordsForBaby, removeBabyFromContext, scopedStorageKey } from "../src/familyScope.js";
+import { chooseActiveBaby, chooseActiveFamily, formatInviteCode, makeScopedRecord, normalizeInviteCode, recordScope, recordsForBaby, removeBabyFromContext, scopedStorageKey } from "../src/familyScope.js";
 
 const family = { id: "family-a" };
 const babies = [
@@ -53,4 +53,10 @@ test("rapid twin records retain the baby selected at creation time", () => {
 
 test("a baby from another family cannot be used for a write", () => {
   assert.throws(() => makeScopedRecord({}, family, { id: "outsider", family_id: "family-x" }, "user-a"), /invalid_baby_scope/);
+});
+
+test("family invite codes survive spaces, lowercase and copied separators", () => {
+  assert.equal(normalizeInviteCode("a1b2 c3d4-e5f6"), "A1B2C3D4E5F6");
+  assert.equal(formatInviteCode("a1b2c3d4e5f6"), "A1B2-C3D4-E5F6");
+  assert.equal(normalizeInviteCode("A1B2-C3D4-E5F6-extra"), "A1B2C3D4E5F6");
 });

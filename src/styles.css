@@ -302,3 +302,31 @@
 .spin{animation:family-spin 1s linear infinite;margin:auto;color:var(--sage)}@keyframes family-spin{to{transform:rotate(360deg)}}
 @media(max-width:430px){.family-gate{padding:15px}.family-gate-card{padding:24px}.baby-manager-sheet,.family-settings-sheet{height:92dvh}.member-list article{grid-template-columns:36px 1fr}.member-actions{grid-column:2;flex-wrap:wrap}.dialog-actions{position:sticky;bottom:0;background:var(--cream);padding-top:8px}}
 @media(max-width:360px){.invite-profile-grid,.settings-profile-form{grid-template-columns:1fr}}
+
+/* ---------- 隐私同意与三语隐私政策 ---------- */
+.consent-block{display:grid;gap:9px;margin-top:16px;padding:13px;border:1px solid #dce3d8;border-radius:14px;background:#f5f8f2}
+.auth-card .consent-row{display:grid;grid-template-columns:20px 1fr;gap:9px;align-items:start;margin:0;font-size:10px;font-weight:500;line-height:1.55;color:var(--ink)}
+.auth-card .consent-row input{width:18px;height:18px;margin:1px 0 0;accent-color:var(--sage)}
+.consent-row button,.privacy-link{border:0;background:transparent;color:var(--sage);padding:0;text-decoration:underline;text-underline-offset:2px;cursor:pointer}
+.privacy-link{display:block;width:100%;margin-top:8px;font-size:9px;text-align:center;text-decoration:none}
+.gate-privacy-link{margin-top:14px;border:0;background:transparent;color:var(--sage);font-size:9px;cursor:pointer}
+.privacy-settings>button{width:100%;height:42px;border:1px solid #d8e0d4;border-radius:11px;background:var(--sage-soft);color:var(--sage);display:flex;align-items:center;justify-content:center;gap:7px;font-weight:650}
+.privacy-settings>p{margin:8px 0 0;color:var(--muted);font-size:9px;line-height:1.55}
+.privacy-overlay{z-index:30}
+.privacy-sheet{position:fixed;z-index:31;inset:clamp(10px,3vh,28px) 0;margin:auto;width:min(calc(100vw - 24px),680px);height:min(calc(100dvh - 20px),850px);display:flex;flex-direction:column;overflow:hidden;border:1px solid var(--line);border-radius:24px;background:var(--cream);box-shadow:0 26px 90px rgba(38,38,34,.2);padding:22px;outline:none}
+.privacy-head{display:flex;align-items:flex-start;justify-content:space-between;gap:18px;flex:0 0 auto}.privacy-head h2{margin:0 0 5px;font-size:22px}.privacy-head p{margin:0;color:var(--muted);font-size:10px}
+.privacy-language{display:flex;gap:7px;overflow-x:auto;flex:0 0 auto;margin:17px 0 12px;padding-bottom:2px;scrollbar-width:none}.privacy-language button{height:36px;white-space:nowrap;padding:0 13px;border:1px solid var(--line);border-radius:18px;background:#fff;color:var(--muted);font-size:10px}.privacy-language button.active{border-color:#aab8a4;background:var(--sage-soft);color:var(--sage);font-weight:700}
+.privacy-scroll{min-height:0;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;padding:1px 6px 18px 1px;scrollbar-width:thin;scrollbar-color:#cbd3c6 transparent}
+.privacy-summary{display:grid;grid-template-columns:26px 1fr;gap:10px;margin:0 0 14px;padding:14px;border-radius:15px;background:var(--sage-soft);color:#52624e;font-size:11px;line-height:1.65}.privacy-summary svg{margin-top:1px}
+.privacy-scroll section{padding:15px 2px;border-top:1px solid var(--line)}.privacy-scroll h3{margin:0 0 8px;font-size:14px}.privacy-scroll p,.privacy-scroll li{font-size:10.5px;line-height:1.72;color:#625f59}.privacy-scroll p{margin:7px 0}.privacy-scroll ul{margin:0;padding-left:19px}.privacy-scroll li+li{margin-top:5px}.privacy-scroll a{display:inline-block;margin-top:8px;color:var(--sage);font-size:10px;font-weight:700}
+@media(max-width:430px){.privacy-sheet{inset:auto 0 0;width:100%;height:calc(100dvh - max(10px,env(safe-area-inset-top)));border-radius:22px 22px 0 0;padding:18px 17px calc(14px + env(safe-area-inset-bottom))}.privacy-head h2{font-size:20px}}
+
+/* ---------- 家庭邀请码 ---------- */
+.join-code-card{margin-top:18px;padding:15px;border:1px solid #d9e2d5;border-radius:16px;background:var(--sage-soft);display:grid;gap:10px;text-align:left}
+.join-code-card input{height:46px!important;margin:0!important;text-align:center;text-transform:uppercase;letter-spacing:.12em;font-weight:750;font-variant-numeric:tabular-nums}
+.join-code-card>button{height:44px;border:0;border-radius:11px;background:var(--sage);color:#fff;font-weight:700}.join-code-card>button:disabled{opacity:.5}
+.invite-code-create{margin-top:14px;padding-top:12px;border-top:1px solid var(--line)}.invite-code-create>p{margin:0;color:var(--muted);font-size:9px;line-height:1.6}
+.generated-code{margin-top:10px;padding:15px;border:1px solid #d8e1d4;border-radius:15px;background:linear-gradient(135deg,#f1f6ed,#fffaf5);display:grid;justify-items:center;gap:5px}.generated-code>small{font-size:9px;color:var(--muted)}.generated-code>strong{font-size:22px;letter-spacing:.1em;color:#52624e;font-variant-numeric:tabular-nums}.generated-code>span{font-size:9px;color:var(--muted)}
+.generated-code>div{width:100%;display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-top:7px}.generated-code button{height:38px;border:1px solid #d5ded1;border-radius:10px;background:#fff;color:var(--sage);display:flex;align-items:center;justify-content:center;gap:5px;font-size:10px;font-weight:650}
+.join-family-section>p{margin:0;color:var(--muted);font-size:9px;line-height:1.6}.join-family-section form{display:grid;grid-template-columns:1fr auto;gap:7px;margin-top:10px}.join-family-section input{min-width:0;height:42px;border:1px solid var(--line);border-radius:11px;background:#fff;padding:0 10px;text-align:center;text-transform:uppercase;letter-spacing:.08em;font-weight:700}.join-family-section form>button{min-width:78px;border:0;border-radius:11px;background:var(--sage);color:#fff;font-size:10px;font-weight:700}.join-family-section form>button:disabled{opacity:.48}
+@media(max-width:360px){.generated-code>strong{font-size:19px}.join-family-section form{grid-template-columns:1fr}.join-family-section form>button{height:42px}}

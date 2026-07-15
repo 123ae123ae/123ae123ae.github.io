@@ -2,11 +2,12 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import * as Dialog from "@radix-ui/react-dialog";
 import { motion, AnimatePresence } from "motion/react";
 import { createClient } from "@supabase/supabase-js";
-import { chooseActiveBaby, chooseActiveFamily, recordScope, scopedStorageKey } from "./familyScope.js";
+import { chooseActiveBaby, chooseActiveFamily, formatInviteCode, normalizeInviteCode, recordScope, scopedStorageKey } from "./familyScope.js";
 import { languages, normalizeLocale, translate } from "./i18n.js";
+import { policyLocale, privacyPolicies, PRIVACY_EFFECTIVE_DATE, PRIVACY_VERSION } from "./privacy.js";
 import {
   Activity, AlertTriangle, ArrowUp, Baby, CalendarDays, Camera, Check, ChevronDown, ChevronLeft, ChevronRight,
-  ClipboardList, Copy, Download, Home, ImagePlus, Images, Languages, Library, LogOut, Mail, Pencil, Plus, RefreshCw, Settings, Share2, ShieldCheck, Sparkles, Sprout, Trash2, UserPlus, UserRound, Users, X,
+  ClipboardList, Copy, Download, Home, ImagePlus, Images, KeyRound, Languages, Library, LogOut, Mail, Pencil, Plus, RefreshCw, Settings, Share2, ShieldCheck, Sparkles, Sprout, Trash2, UserPlus, UserRound, Users, X,
 } from "lucide-react";
 
 const supabase = createClient("https://vqxzrydqnlpxyjafjdoh.supabase.co", "sb_publishable_Pn-dEaqu0oWYJ8eK8OgUAg_PPORfQFF");
@@ -1102,6 +1103,8 @@ const friendlyFamilyError = error => {
   const code = String(error?.code || "");
   if (message.includes("already_family_member")) return "这个邮箱已经是家庭成员了";
   if (message.includes("invitation_exists")) return "这个邮箱已经有一份待接受的邀请";
+  if (message.includes("invitation_code_invalid")) return "邀请码不正确，请检查后重新输入";
+  if (message.includes("invitation_not_pending")) return "这个邀请码已经使用或已被新的邀请码替换";
   if (message.includes("invitation_expired")) return "邀请已经过期，请让家人重新生成";
   if (message.includes("invitation_email_mismatch")) return "请使用收到邀请的邮箱登录";
   if (message.includes("owner_must_transfer")) return "所有者需要先转让家庭，或删除家庭";
@@ -1111,10 +1114,11 @@ const friendlyFamilyError = error => {
   return code ? `操作没有完成（错误代码 ${code}），请稍后重试` : "操作没有完成，请检查网络后重试";
 };
 
-function FamilyOnboarding({ user, inviteToken, onCreate, onAcceptInvite, onOpenAuth, busy, message, locale }) {
+function FamilyOnboarding({ user, inviteToken, onCreate, onAcceptInvite, onAcceptCode, onOpenAuth, onOpenPrivacy, busy, message, locale }) {
   const [familyName, setFamilyName] = useState("我们的家庭");
   const [inviteName, setInviteName] = useState("");
   const [inviteRelationship, setInviteRelationship] = useState("");
+  const [joinCode, setJoinCode] = useState("");
   const t = key => translate(locale, key);
   useEffect(() => {
     if (!inviteToken || !user) return;
@@ -1130,6 +1134,11 @@ function FamilyOnboarding({ user, inviteToken, onCreate, onAcceptInvite, onOpenA
         {!user ? (
           <button className="save-button" onClick={onOpenAuth}><Mail size={17} />登录或注册</button>
         ) : <>
+          <section className="join-code-card">
+            <div className="invite-gate-title"><KeyRound size={20} /><span><b>用邀请码加入家庭</b><small>输入家人发给你的 12 位邀请码，加入后会直接看到家庭和宝宝。</small></span></div>
+            <input aria-label="家庭邀请码" inputMode="text" autoCapitalize="characters" autoCorrect="off" value={joinCode} onChange={e => setJoinCode(formatInviteCode(e.target.value))} placeholder="例如：A1B2-C3D4-E5F6" maxLength={14} />
+            <button onClick={() => onAcceptCode(joinCode)} disabled={busy || normalizeInviteCode(joinCode).length !== 12}>{busy ? "正在加入…" : "加入这个家庭"}</button>
+          </section>
           {inviteToken && (
             <section className="invite-gate-card">
               <div className="invite-gate-title"><UserPlus size={20} /><span><b>{t("joinFamily")}</b><small>加入前确认你在家庭中显示的资料。</small></span></div>
@@ -1146,6 +1155,7 @@ function FamilyOnboarding({ user, inviteToken, onCreate, onAcceptInvite, onOpenA
           </form>
           <button className="secondary-button" onClick={onOpenAuth}><Settings size={16} />查看账号</button>
         </>}
+        <button className="gate-privacy-link" type="button" onClick={onOpenPrivacy}>隐私政策 · Politique de confidentialité · Privacy Policy</button>
         {message && <p className="auth-message">{message}</p>}
       </div>
     </div>
@@ -1225,13 +1235,45 @@ function BabyManagerDialog({ open, onOpenChange, family, role, babies, activeBab
   );
 }
 
-function FamilySettingsDialog({ open, onOpenChange, user, family, membership, memberships = [], locale, onLocale, onSwitchFamily, onReload, onSignedOut }) {
+function PrivacyPolicyDialog({ open, onOpenChange, locale }) {
+  const [language, setLanguage] = useState(() => policyLocale(locale));
+  useEffect(() => { if (open) setLanguage(policyLocale(locale)); }, [open, locale]);
+  const policy = privacyPolicies[language];
+  return (
+    <Dialog.Root open={open} onOpenChange={onOpenChange}>
+      <Dialog.Portal>
+        <Dialog.Overlay className="dialog-overlay privacy-overlay" />
+        <Dialog.Content className="privacy-sheet">
+          <header className="privacy-head">
+            <div><Dialog.Title>{policy.title}</Dialog.Title><Dialog.Description>{policy.effective}：{PRIVACY_EFFECTIVE_DATE} · {policy.version} {PRIVACY_VERSION}</Dialog.Description></div>
+            <Dialog.Close className="icon-button" aria-label="关闭"><X size={20} /></Dialog.Close>
+          </header>
+          <div className="privacy-language" role="group" aria-label="Privacy policy language">
+            {Object.entries(privacyPolicies).map(([code, item]) => <button key={code} className={language === code ? "active" : ""} onClick={() => setLanguage(code)}>{item.language}</button>)}
+          </div>
+          <div className="privacy-scroll">
+            <p className="privacy-summary"><ShieldCheck size={20} />{policy.summary}</p>
+            {policy.sections.map(section => <section key={section.title}>
+              <h3>{section.title}</h3>
+              {section.paragraphs?.map(paragraph => <p key={paragraph}>{paragraph}</p>)}
+              {section.bullets && <ul>{section.bullets.map(item => <li key={item}>{item}</li>)}</ul>}
+              {section.title.startsWith("6.") && <a href={policy.cnilUrl} target="_blank" rel="noreferrer">CNIL</a>}
+            </section>)}
+          </div>
+        </Dialog.Content>
+      </Dialog.Portal>
+    </Dialog.Root>
+  );
+}
+
+function FamilySettingsDialog({ open, onOpenChange, user, family, membership, memberships = [], locale, onLocale, onSwitchFamily, onReload, onSignedOut, onOpenPrivacy, onJoinByCode }) {
   const [members, setMembers] = useState([]);
   const [profileName, setProfileName] = useState("");
   const [relationship, setRelationship] = useState("");
   const [familyName, setFamilyName] = useState("");
-  const [email, setEmail] = useState("");
-  const [inviteLink, setInviteLink] = useState("");
+  const [inviteCode, setInviteCode] = useState("");
+  const [inviteExpires, setInviteExpires] = useState("");
+  const [joinCode, setJoinCode] = useState("");
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
   const role = membership?.role;
@@ -1247,7 +1289,7 @@ function FamilySettingsDialog({ open, onOpenChange, user, family, membership, me
     setProfileName(mine?.display_name || user?.user_metadata?.display_name || "");
     setRelationship(mine?.relationship || user?.user_metadata?.relationship || "");
   };
-  useEffect(() => { if (open) { setMessage(""); setInviteLink(""); setFamilyName(family?.name || ""); loadMembers(); } }, [open, family?.id]);
+  useEffect(() => { if (open) { setMessage(""); setInviteCode(""); setInviteExpires(""); setJoinCode(""); setFamilyName(family?.name || ""); loadMembers(); } }, [open, family?.id]);
   const saveProfile = async e => {
     e.preventDefault();
     const nextName = profileName.trim();
@@ -1275,14 +1317,32 @@ function FamilySettingsDialog({ open, onOpenChange, user, family, membership, me
     setMessage("家庭名称已修改");
     await onReload();
   };
-  const invite = async e => {
-    e.preventDefault(); setBusy(true); setMessage("");
-    const { data, error } = await supabase.rpc("create_family_invitation", { p_family_id: family.id, p_email: email.trim() });
+  const invite = async () => {
+    setBusy(true); setMessage("");
+    const { data, error } = await supabase.rpc("create_family_invite_code", { p_family_id: family.id });
     setBusy(false);
     if (error) { setMessage(friendlyFamilyError(error)); return; }
-    const token = data?.[0]?.token;
-    const link = `${location.origin}${location.pathname}?invite=${encodeURIComponent(token)}`;
-    setInviteLink(link); setMessage("邀请已生成，把链接发给家人即可");
+    const created = data?.[0];
+    setInviteCode(formatInviteCode(created?.invite_code));
+    setInviteExpires(created?.expires_at || "");
+    setMessage("新的家庭邀请码已生成；之前未使用的通用邀请码已自动失效");
+  };
+  const shareInviteCode = async () => {
+    const text = `加入“${family.name}”的宝贝食光家庭\n邀请码：${inviteCode}\n打开：${location.origin}${location.pathname}\n登录自己的账号后，在“用邀请码加入家庭”中输入。`;
+    if (navigator.share) {
+      try { await navigator.share({ title: `${family.name} · 家庭邀请`, text }); return; } catch (error) { if (error?.name === "AbortError") return; }
+    }
+    await navigator.clipboard.writeText(text);
+    setMessage("邀请文字已复制，可以发给家人了");
+  };
+  const joinByCode = async e => {
+    e.preventDefault();
+    if (normalizeInviteCode(joinCode).length !== 12) { setMessage("请输入完整的 12 位邀请码"); return; }
+    setBusy(true); setMessage("");
+    const result = await onJoinByCode(joinCode);
+    setBusy(false);
+    if (result?.error) setMessage(result.error);
+    else onOpenChange(false);
   };
   const changeRole = async (member, nextRole) => {
     const { error } = await supabase.from("family_members").update({ role: nextRole }).eq("family_id", family.id).eq("user_id", member.user_id);
@@ -1343,12 +1403,19 @@ function FamilySettingsDialog({ open, onOpenChange, user, family, membership, me
         <section className="settings-section"><h3><Users size={17} />{t("familyMembers")}</h3>
           <div className="member-list">{members.map(member => <article key={member.user_id}><span className="member-avatar">{(member.display_name || member.email || "家")[0]}</span><div><b>{member.display_name || member.email}{member.user_id === user.id && <em className="you-tag">你</em>}</b><small>{member.relationship || "家庭成员"} · {t(member.role)}</small><small>{member.email}</small></div>{role === "owner" && member.role !== "owner" && <div className="member-actions"><select value={member.role} onChange={e => changeRole(member,e.target.value)}><option value="admin">{t("admin")}</option><option value="member">{t("member")}</option></select><button onClick={() => transfer(member)}>转让</button><button onClick={() => removeMember(member)}>移除</button></div>}</article>)}</div>
           {!members.length && <p className="settings-help">家庭成员资料正在加载；已加入的家人会显示在这里。</p>}
-          {canManage && <form className="invite-form" onSubmit={invite}><label>家人的邮箱<input type="email" value={email} onChange={e => setEmail(e.target.value)} required /></label><button className="save-button" disabled={busy}><UserPlus size={17} />{t("inviteMember")}</button></form>}
-          {inviteLink && <div className="invite-link"><input value={inviteLink} readOnly /><button onClick={async () => { await navigator.clipboard.writeText(inviteLink); setMessage("邀请链接已复制"); }}><Copy size={15} />复制</button></div>}
+          {canManage && <div className="invite-code-create">
+            <p>生成一个一次性家庭邀请码，只发给你信任的家人。邀请码 7 天有效，使用一次后失效。</p>
+            {!inviteCode ? <button className="save-button" type="button" onClick={invite} disabled={busy}><KeyRound size={17} />{busy ? "正在生成…" : "生成家庭邀请码"}</button> : <div className="generated-code">
+              <small>家庭邀请码</small><strong>{inviteCode}</strong><span>{inviteExpires ? `有效至 ${new Date(inviteExpires).toLocaleDateString("zh-CN")}` : "7 天内有效"}</span>
+              <div><button type="button" onClick={async () => { await navigator.clipboard.writeText(inviteCode); setMessage("邀请码已复制"); }}><Copy size={15} />复制邀请码</button><button type="button" onClick={shareInviteCode}><Share2 size={15} />分享</button></div>
+            </div>}
+          </div>}
         </section>
+        <section className="settings-section join-family-section"><h3><KeyRound size={17} />用邀请码加入另一个家庭</h3><p>如果家人已经建立了家庭，在这里输入对方发来的邀请码。成功后会自动切换过去，不会删除你现在的家庭。</p><form onSubmit={joinByCode}><input aria-label="家庭邀请码" inputMode="text" autoCapitalize="characters" autoCorrect="off" value={joinCode} onChange={e => setJoinCode(formatInviteCode(e.target.value))} placeholder="A1B2-C3D4-E5F6" maxLength={14} /><button disabled={busy || normalizeInviteCode(joinCode).length !== 12}>加入家庭</button></form></section>
         <section className="settings-section"><h3><Languages size={17} />语言</h3><select value={locale} onChange={e => onLocale(e.target.value)}>{languages.map(language => <option key={language.code} value={language.code}>{language.label}</option>)}</select></section>
         <section className="settings-section"><h3><Mail size={17} />登录状态</h3><p className="settings-account-email">{user.email}</p><button className="logout-button" onClick={async () => { await supabase.auth.signOut({ scope: "local" }); onOpenChange(false); onSignedOut(); }}><LogOut size={16} />退出这台设备</button></section>
-        <section className="settings-section danger-zone"><h3>账户与隐私</h3>{role !== "owner" && <button onClick={leave}><LogOut size={16} />{t("leaveFamily")}</button>}{role === "owner" && <button onClick={deleteFamily} disabled={busy}><Trash2 size={16} />{t("deleteFamily")}</button>}<button onClick={deleteAccount} disabled={busy}><Trash2 size={16} />{t("deleteAccount")}</button><p>删除操作不可恢复。共享家庭数据是否保留，取决于你的家庭角色和所有权状态。</p></section>
+        <section className="settings-section privacy-settings"><h3><ShieldCheck size={17} />账户与隐私</h3><button type="button" onClick={onOpenPrivacy}><ShieldCheck size={16} />查看隐私政策</button><p>提供中文、法语和英语版本，包含数据用途、保存期限、家庭访问权限与用户权利。</p></section>
+        <section className="settings-section danger-zone"><h3>删除与退出</h3>{role !== "owner" && <button onClick={leave}><LogOut size={16} />{t("leaveFamily")}</button>}{role === "owner" && <button onClick={deleteFamily} disabled={busy}><Trash2 size={16} />{t("deleteFamily")}</button>}<button onClick={deleteAccount} disabled={busy}><Trash2 size={16} />{t("deleteAccount")}</button><p>删除操作不可恢复。共享家庭数据是否保留，取决于你的家庭角色和所有权状态。</p></section>
         {message && <p className="auth-message">{message}</p>}
       </Dialog.Content></Dialog.Portal>
     </Dialog.Root>
@@ -1394,11 +1461,26 @@ function App() {
   const [activeBaby, setActiveBaby] = useState(null);
   const [babyManagerOpen, setBabyManagerOpen] = useState(false);
   const [familySettingsOpen, setFamilySettingsOpen] = useState(false);
+  const [privacyOpen, setPrivacyOpen] = useState(() => location.hash === "#privacy");
   const [familyGateMessage, setFamilyGateMessage] = useState("");
   const [familyBusy, setFamilyBusy] = useState(false);
   const [locale, setLocale] = useState(() => normalizeLocale(localStorage.getItem("baby-journal-locale")));
   const [showScrollTop, setShowScrollTop] = useState(false);
   const inviteToken = useMemo(() => new URLSearchParams(location.search).get("invite") || "", []);
+  const openPrivacy = () => {
+    history.replaceState(null, "", `${location.pathname}${location.search}#privacy`);
+    setPrivacyOpen(true);
+  };
+  const changePrivacyOpen = value => {
+    setPrivacyOpen(value);
+    if (!value && location.hash === "#privacy") history.replaceState(null, "", `${location.pathname}${location.search}`);
+  };
+
+  useEffect(() => {
+    const onHashChange = () => setPrivacyOpen(location.hash === "#privacy");
+    window.addEventListener("hashchange", onHashChange);
+    return () => window.removeEventListener("hashchange", onHashChange);
+  }, []);
 
   const scrollToTop = () => {
     contentRef.current?.scrollTo({
@@ -1878,6 +1960,27 @@ function App() {
     setFamilyBusy(false);
   };
 
+  const acceptInviteCode = async code => {
+    const normalized = normalizeInviteCode(code);
+    if (normalized.length !== 12) {
+      const error = "请输入完整的 12 位家庭邀请码";
+      setFamilyGateMessage(error); setNotice(error);
+      return { error };
+    }
+    setFamilyBusy(true); setFamilyGateMessage("");
+    const { error } = await supabase.rpc("accept_family_invite_code", { p_code: normalized });
+    if (error) {
+      const friendly = friendlyFamilyError(error);
+      setFamilyGateMessage(friendly); setNotice(friendly); setFamilyBusy(false);
+      return { error: friendly };
+    }
+    setFamilySettingsOpen(false);
+    await loadFamilyContext(currentUser);
+    setNotice("已加入家人的家庭，宝宝资料正在同步");
+    setFamilyBusy(false);
+    return { ok: true };
+  };
+
   const switchBaby = async baby => {
     setDetailMeal(null); setSheetOpen(false); setPrefill(null);
     await activateBaby(baby, activeFamily, currentUser);
@@ -2012,16 +2115,18 @@ function App() {
   if (!authReady || familyLoading) return <div className="family-gate"><div className="family-gate-card"><RefreshCw className="spin" /><p>正在安全加载家庭资料…</p></div></div>;
 
   if (!currentUser || !activeFamily) return <>
-    <FamilyOnboarding user={currentUser} inviteToken={inviteToken} onCreate={createFamily} onAcceptInvite={acceptInvite} onOpenAuth={() => setAuthOpen(true)} busy={familyBusy} message={familyGateMessage} locale={locale} />
-    <AuthDialog open={authOpen} onOpenChange={setAuthOpen} user={currentUser} online={online} pendingCount={0} babyName={babyName} birth={birth}
+    <FamilyOnboarding user={currentUser} inviteToken={inviteToken} onCreate={createFamily} onAcceptInvite={acceptInvite} onAcceptCode={acceptInviteCode} onOpenAuth={() => setAuthOpen(true)} onOpenPrivacy={openPrivacy} busy={familyBusy} message={familyGateMessage} locale={locale} />
+    <AuthDialog open={authOpen} onOpenChange={setAuthOpen} user={currentUser} online={online} pendingCount={0} babyName={babyName} birth={birth} onOpenPrivacy={openPrivacy}
       onProfilePrepared={() => {}} onSync={() => {}} onSignedIn={async user => { setCurrentUser(user); setAuthOpen(false); await loadFamilyContext(user); }}
       onSignedOut={() => { setCurrentUser(null); setAuthOpen(false); }} />
+    <PrivacyPolicyDialog open={privacyOpen} onOpenChange={changePrivacyOpen} locale={locale} />
   </>;
 
   if (!activeBaby) return <>
     <div className="family-gate"><div className="family-gate-card"><div className="account-mark"><Baby size={28} /></div><h1>{activeFamily.name}</h1><h2>家庭里还没有宝宝</h2><p>添加第一个宝宝后，就可以开始记录辅食。昵称必填，出生日期、性别、头像和备注都可以稍后补充。</p><button className="save-button" onClick={() => setBabyManagerOpen(true)}><Plus size={18} />添加宝宝</button><button className="secondary-button" onClick={() => setFamilySettingsOpen(true)}><Settings size={17} />家庭与账户</button></div></div>
     <BabyManagerDialog open={babyManagerOpen} onOpenChange={setBabyManagerOpen} family={activeFamily} role={activeMembership?.role} babies={babies} activeBaby={activeBaby} locale={locale} onSwitch={switchBaby} onSave={saveManagedBaby} onDelete={deleteManagedBaby} onMove={moveManagedBaby} />
-    <FamilySettingsDialog open={familySettingsOpen} onOpenChange={setFamilySettingsOpen} user={currentUser} family={activeFamily} membership={activeMembership} memberships={memberships} locale={locale} onLocale={changeLocale} onSwitchFamily={switchFamily} onReload={() => loadFamilyContext(currentUser)} onSignedOut={() => supabase.auth.signOut({ scope: "local" })} />
+    <FamilySettingsDialog open={familySettingsOpen} onOpenChange={setFamilySettingsOpen} user={currentUser} family={activeFamily} membership={activeMembership} memberships={memberships} locale={locale} onLocale={changeLocale} onSwitchFamily={switchFamily} onReload={() => loadFamilyContext(currentUser)} onSignedOut={() => supabase.auth.signOut({ scope: "local" })} onOpenPrivacy={openPrivacy} onJoinByCode={acceptInviteCode} />
+    <PrivacyPolicyDialog open={privacyOpen} onOpenChange={changePrivacyOpen} locale={locale} />
   </>;
 
   return (
@@ -2130,6 +2235,7 @@ function App() {
         pendingCount={readLocal(cacheKey(pendingKey), []).length}
         babyName={babyName}
         birth={birth}
+        onOpenPrivacy={openPrivacy}
         onProfilePrepared={storeBabyProfile}
         onSync={syncFromAccount}
         onSignedIn={async user => { setCurrentUser(user); setAuthOpen(false); const context = await loadFamilyContext(user); if (context?.baby) sync(context.family, context.baby); setNotice("登录成功，正在同步记录"); }}
@@ -2145,14 +2251,15 @@ function App() {
       />
       <BabyProfileDialog open={profileOpen} onOpenChange={setProfileOpen} babyName={babyName} birth={birth} onSave={saveBabyProfile} />
       <BabyManagerDialog open={babyManagerOpen} onOpenChange={setBabyManagerOpen} family={activeFamily} role={activeMembership?.role} babies={babies} activeBaby={activeBaby} locale={locale} onSwitch={switchBaby} onSave={saveManagedBaby} onDelete={deleteManagedBaby} onMove={moveManagedBaby} />
-      <FamilySettingsDialog open={familySettingsOpen} onOpenChange={setFamilySettingsOpen} user={currentUser} family={activeFamily} membership={activeMembership} memberships={memberships} locale={locale} onLocale={changeLocale} onSwitchFamily={switchFamily} onReload={() => loadFamilyContext(currentUser)} onSignedOut={() => supabase.auth.signOut({ scope: "local" })} />
+      <FamilySettingsDialog open={familySettingsOpen} onOpenChange={setFamilySettingsOpen} user={currentUser} family={activeFamily} membership={activeMembership} memberships={memberships} locale={locale} onLocale={changeLocale} onSwitchFamily={switchFamily} onReload={() => loadFamilyContext(currentUser)} onSignedOut={() => supabase.auth.signOut({ scope: "local" })} onOpenPrivacy={openPrivacy} onJoinByCode={acceptInviteCode} />
+      <PrivacyPolicyDialog open={privacyOpen} onOpenChange={changePrivacyOpen} locale={locale} />
       <FoodEditDialog editing={editingFood} onClose={() => setEditingFood(null)} onSave={saveFood} onDelete={deleteFood} />
       <InfoDialog info={info} onClose={() => setInfo(null)} />
     </div>
   );
 }
 
-function AuthDialog({ open, onOpenChange, onSignedIn, onSignedOut, onSync, user, online, pendingCount, babyName }) {
+function AuthDialog({ open, onOpenChange, onSignedIn, onSignedOut, onSync, user, online, pendingCount, babyName, onOpenPrivacy }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [message, setMessage] = useState("");
@@ -2160,12 +2267,16 @@ function AuthDialog({ open, onOpenChange, onSignedIn, onSignedOut, onSync, user,
   const [signupMode, setSignupMode] = useState(false);
   const [signupName, setSignupName] = useState("");
   const [signupRelationship, setSignupRelationship] = useState("");
+  const [privacyAccepted, setPrivacyAccepted] = useState(false);
+  const [healthConsent, setHealthConsent] = useState(false);
   useEffect(() => {
     if (open) {
       setMessage("");
       setSignupMode(false);
       setSignupName("");
       setSignupRelationship("");
+      setPrivacyAccepted(false);
+      setHealthConsent(false);
     }
   }, [open, user]);
   const logout = async () => {
@@ -2193,11 +2304,16 @@ function AuthDialog({ open, onOpenChange, onSignedIn, onSignedOut, onSync, user,
     if (password.length < 6) { setMessage("密码至少要 6 位"); return; }
     if (!signupName.trim()) { setMessage("请填写你的称呼"); return; }
     if (!signupRelationship.trim()) { setMessage("请填写你在家庭中的身份"); return; }
+    if (!privacyAccepted) { setMessage("请先阅读并同意隐私政策"); return; }
+    if (!healthConsent) { setMessage("请确认你是父母或法定监护人，并明确同意处理宝宝的身体反应与过敏信息"); return; }
     setMessage("正在创建个人账号…");
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
-      options: { data: { display_name: signupName.trim(), relationship: signupRelationship.trim() } },
+      options: {
+        emailRedirectTo: `${location.origin}${location.pathname}${location.search}`,
+        data: { display_name: signupName.trim(), relationship: signupRelationship.trim(), privacy_accepted: true, privacy_policy_version: PRIVACY_VERSION, health_data_consent: true },
+      },
     });
     if (error) {
       const msg = error.message || "";
@@ -2251,8 +2367,13 @@ function AuthDialog({ open, onOpenChange, onSignedIn, onSignedOut, onSync, user,
             </div>}
             <label>邮箱<input type="email" value={email} onChange={e => setEmail(e.target.value)} required /></label>
             <label>密码<input type="password" minLength="6" autoComplete={signupMode ? "new-password" : "current-password"} value={password} onChange={e => setPassword(e.target.value)} required /></label>
+            {signupMode && <div className="consent-block">
+              <label className="consent-row"><input type="checkbox" checked={privacyAccepted} onChange={e => setPrivacyAccepted(e.target.checked)} required /><span>我已阅读并同意<button type="button" onClick={onOpenPrivacy}>《隐私政策》</button></span></label>
+              <label className="consent-row"><input type="checkbox" checked={healthConsent} onChange={e => setHealthConsent(e.target.checked)} required /><span>我是宝宝的父母或法定监护人，并明确同意处理身体反应、过敏等健康相关信息。</span></label>
+            </div>}
             <button className="save-button" type="submit">{signupMode ? "创建个人账号" : "登录"}</button>
             <button className="signup-link" type="button" onClick={() => { setSignupMode(value => !value); setMessage(""); }}>{signupMode ? "已有账号？返回登录" : "第一次使用？创建个人账号"}</button>
+            {!signupMode && <button className="privacy-link" type="button" onClick={onOpenPrivacy}>隐私政策 · Politique de confidentialité · Privacy Policy</button>}
             <p className="auth-message">{message}</p>
           </form>
         </Dialog.Content>
