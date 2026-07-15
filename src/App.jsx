@@ -117,6 +117,13 @@ const libFor = food => mergedLibrary.find(f => f.name === food)
   || mergedLibrary.find(f => food.includes(f.name) || f.name.includes(food.replace(/[泥糊碎段条块]/g, "")))
   || (food.length >= 2 ? mergedLibrary.find(f => f.name.startsWith(food.slice(0, 2))) : null);
 const emojiFor = food => libFor(food)?.emoji || "🥄";
+const foodsForMeal = meal => {
+  if (!meal) return [];
+  if (Array.isArray(meal.foods) && meal.foods.length) return [...new Set(meal.foods.map(String).map(x => x.trim()).filter(Boolean))];
+  const single = typeof meal === "string" ? meal : meal.food;
+  return single ? [String(single).trim()].filter(Boolean) : [];
+};
+const mealFoodLabel = meal => foodsForMeal(meal).join("、") || meal?.food || "餐食";
 
 /* ---------- 头像 ---------- */
 const prepareAvatar = file => new Promise((resolve, reject) => {
@@ -142,6 +149,17 @@ function FoodPhoto({ food, size = 56 }) {
   return src
     ? <img src={src} alt="" style={{ width: size, height: size }} className="food-photo" />
     : <span className="food-emoji" style={{ width: size, height: size, fontSize: size * .52 }}>{emojiFor(food)}</span>;
+}
+
+function FoodIllustrations({ meal, foods, size = 56, className = "" }) {
+  const items = (foods?.length ? foods : foodsForMeal(meal)).slice(0, 4);
+  if (items.length <= 1) return <FoodPhoto food={items[0] || meal?.food || "餐食"} size={size} />;
+  return (
+    <span className={`food-illustrations ${className}`} aria-label={items.join("、")}>
+      {items.map(food => <FoodPhoto key={food} food={food} size={size} />)}
+      {(foods?.length || foodsForMeal(meal).length) > 4 && <i>+{(foods?.length || foodsForMeal(meal).length) - 4}</i>}
+    </span>
+  );
 }
 
 // 压缩食物照片为 256px 方形 webp（存 localStorage，体积小）
@@ -292,10 +310,10 @@ function MealTimeline({ meals, sortBy, onToggleSort, onOpenMeal, onViewAll }) {
             <time>{fmtTime(meal.eaten_at)}</time>
             <span className="timeline-dot" />
             {meal.photo_preview
-              ? <div className="meal-photo-thumb"><img src={meal.photo_preview} alt={`${meal.food}的餐食照片`} /><Sparkles size={12} /></div>
-              : <FoodPhoto food={meal.food} />}
+              ? <div className="meal-photo-thumb"><img src={meal.photo_preview} alt={`${mealFoodLabel(meal)}的餐食照片`} /><Sparkles size={12} /></div>
+              : <FoodIllustrations meal={meal} />}
             <div className="meal-copy">
-              <h3>{meal.food}</h3>
+              <h3>{mealFoodLabel(meal)}</h3>
               <p><b>{meal.amount_grams}克</b><span>{meal.reaction}</span></p>
               {meal.remarks && <p className="meal-remarks" title={meal.remarks}>{meal.remarks}</p>}
             </div>
@@ -322,7 +340,8 @@ function Choices({ title, value, setValue, items }) {
 
 function AddMealDialog({ open, prefill, onOpenChange, onSave }) {
   const editingMeal = prefill?.meal || null;
-  const [food, setFood] = useState("");
+  const [foods, setFoods] = useState([]);
+  const [foodQuery, setFoodQuery] = useState("");
   const [foodPickerOpen, setFoodPickerOpen] = useState(false);
   const [amount, setAmount] = useState(30);
   const [date, setDate] = useState(todayKey);
@@ -335,7 +354,8 @@ function AddMealDialog({ open, prefill, onOpenChange, onSave }) {
   const [photoBusy, setPhotoBusy] = useState(false);
   useEffect(() => {
     if (open) {
-      setFood(editingMeal?.food || prefill?.food || "");
+      setFoods(foodsForMeal(editingMeal || prefill));
+      setFoodQuery("");
       setFoodPickerOpen(false);
       setAmount(editingMeal?.amount_grams ?? prefill?.amount ?? 30);
       setDate(editingMeal ? dayKeyOf(editingMeal.eaten_at) : (prefill?.date || todayKey()));
@@ -349,10 +369,22 @@ function AddMealDialog({ open, prefill, onOpenChange, onSave }) {
     }
   }, [open, prefill]);
   const foodOptions = useMemo(() => {
-    const query = food.trim().toLocaleLowerCase();
+    const query = foodQuery.trim().toLocaleLowerCase();
     if (!query) return mergedLibrary.slice(0, 60);
     return mergedLibrary.filter(item => `${item.name} ${item.fr || ""}`.toLocaleLowerCase().includes(query)).slice(0, 60);
-  }, [food, open]);
+  }, [foodQuery, open]);
+  const toggleFood = name => {
+    setFoods(current => current.includes(name) ? current.filter(food => food !== name) : [...current, name]);
+    setFoodQuery("");
+    setFoodPickerOpen(true);
+  };
+  const addTypedFood = () => {
+    const name = foodQuery.trim();
+    if (!name) return;
+    setFoods(current => current.includes(name) ? current : [...current, name]);
+    setFoodQuery("");
+    setFoodPickerOpen(true);
+  };
   const chooseMealPhoto = async event => {
     const file = event.target.files?.[0];
     if (!file) return;
@@ -377,18 +409,33 @@ function AddMealDialog({ open, prefill, onOpenChange, onSave }) {
             </div>
             <Dialog.Close className="icon-button"><X size={20} /></Dialog.Close>
           </div>
-          <form onSubmit={e => { e.preventDefault(); if (food.trim() && !photoBusy) onSave({ food: food.trim(), amount_grams: Number(amount) || 0, date, time, reaction, note: body, food_source: source, remarks: remarks.trim(), photo_preview: photo }, editingMeal); }}>
+          <form onSubmit={e => {
+            e.preventDefault();
+            const typed = foodQuery.trim();
+            const finalFoods = typed && !foods.includes(typed) ? [...foods, typed] : foods;
+            if (!finalFoods.length || photoBusy) return;
+            onSave({ food: finalFoods.join("、"), foods: finalFoods, amount_grams: Number(amount) || 0, date, time, reaction, note: body, food_source: source, remarks: remarks.trim(), photo_preview: photo }, editingMeal);
+          }}>
             <div className="food-field">
-              <label htmlFor="meal-food">吃了什么</label>
+              <label htmlFor="meal-food">吃了什么 <small>可多选</small></label>
+              {foods.length > 0 && (
+                <div className="selected-foods" aria-label={`已选择 ${foods.length} 种食物`}>
+                  {foods.map(food => (
+                    <button type="button" key={food} onClick={() => setFoods(current => current.filter(item => item !== food))} aria-label={`移除${food}`}>
+                      <span>{emojiFor(food)}</span>{food}<X size={13} />
+                    </button>
+                  ))}
+                </div>
+              )}
               <div className="food-input-wrap">
                 <input
                   id="meal-food"
-                  value={food}
-                  onChange={e => { setFood(e.target.value); setFoodPickerOpen(true); }}
-                  onFocus={() => !food && setFoodPickerOpen(true)}
-                  placeholder="选择或输入食物名"
+                  value={foodQuery}
+                  onChange={e => { setFoodQuery(e.target.value); setFoodPickerOpen(true); }}
+                  onFocus={() => setFoodPickerOpen(true)}
+                  onKeyDown={e => { if (e.key === "Enter" && foodQuery.trim()) { e.preventDefault(); addTypedFood(); } }}
+                  placeholder={foods.length ? "继续搜索并添加食物" : "搜索或输入食物名"}
                   autoComplete="off"
-                  required
                 />
                 <button
                   className="food-picker-toggle"
@@ -398,20 +445,25 @@ function AddMealDialog({ open, prefill, onOpenChange, onSave }) {
                   onClick={() => setFoodPickerOpen(value => !value)}
                 ><ChevronDown size={18} /></button>
                 {foodPickerOpen && (
-                  <div className="food-picker-menu" role="listbox" aria-label="选择食物">
+                  <div className="food-picker-menu" role="listbox" aria-multiselectable="true" aria-label="选择一种或多种食物">
                     {foodOptions.length ? foodOptions.map(item => (
                       <button
                         type="button"
                         role="option"
-                        aria-selected={food === item.name}
+                        aria-selected={foods.includes(item.name)}
                         key={`${item.baseName || item.name}-${item.name}`}
-                        onClick={() => { setFood(item.name); setFoodPickerOpen(false); }}
+                        onClick={() => toggleFood(item.name)}
                       >
                         <span>{item.emoji || "🥣"}</span>
                         <b>{item.name}</b>
-                        {item.fr && <small>{item.fr}</small>}
+                        <small>{foods.includes(item.name) ? "已选择 ✓" : item.fr || "点击添加"}</small>
                       </button>
-                    )) : <p>没有找到，可以直接使用输入的名称</p>}
+                    )) : <p>没有找到，可以把输入内容作为新食物添加</p>}
+                    {foodQuery.trim() && !foods.includes(foodQuery.trim()) && (
+                      <button type="button" className="add-typed-food" onClick={addTypedFood}>
+                        <span>＋</span><b>添加“{foodQuery.trim()}”</b><small>自定义食物</small>
+                      </button>
+                    )}
                   </div>
                 )}
               </div>
@@ -470,16 +522,16 @@ function MealDetailDialog({ meal, onClose, onDelete, onEdit, babyName }) {
           {meal && <>
             <div className="sheet-head detail-sheet-head">
               <div className="detail-title-wrap">
-                <FoodPhoto food={meal.food} size={38} />
+                <FoodIllustrations meal={meal} size={34} className="detail-food-stack" />
                 <div>
-                  <Dialog.Title>{meal.food}</Dialog.Title>
+                  <Dialog.Title>{mealFoodLabel(meal)}</Dialog.Title>
                   <Dialog.Description>{fmtDateCN(dayKeyOf(meal.eaten_at))} {fmtTime(meal.eaten_at)}</Dialog.Description>
                 </div>
               </div>
               <Dialog.Close className="icon-button"><X size={20} /></Dialog.Close>
             </div>
             <div className={`detail-body ${meal.photo_preview ? "has-meal-photo" : "no-meal-photo"}`}>
-              {!meal.photo_preview && <FoodPhoto food={meal.food} size={72} />}
+              {!meal.photo_preview && <FoodIllustrations meal={meal} size={58} className="detail-food-illustrations" />}
               {meal.photo_preview && (
                 <button className="meal-detail-photo-button" onClick={() => setViewerOpen(true)} aria-label={`打开${meal.food}的照片`}>
                   <img className="meal-detail-photo" src={meal.photo_preview} alt={`${meal.food}的餐食照片`} />
@@ -643,8 +695,8 @@ function CalendarDialog({ open, onOpenChange, meals, onAddFor }) {
               : dayMeals.map(m => (
                 <div className="mini-meal" key={m.id}>
                   <time>{fmtTime(m.eaten_at)}</time>
-                  <FoodPhoto food={m.food} size={36} />
-                  <span>{m.food}</span>
+                  <FoodIllustrations meal={m} size={30} className="calendar-card-foods" />
+                  <span>{mealFoodLabel(m)}</span>
                   <b>{m.amount_grams}克</b>
                   <small>{m.reaction}</small>
                 </div>
@@ -918,7 +970,7 @@ function BigCalendar({ meals, onOpenMeal, onAddFor }) {
               <span className="day-foods">
                 {list.slice(0, 4).map(m => m.photo_preview
                   ? <img className="day-meal-photo" key={m.id} src={m.photo_preview} alt="" />
-                  : <FoodPhoto key={m.id} food={m.food} size={17} />)}
+                  : <FoodIllustrations key={m.id} meal={m} size={17} className="calendar-food-stack" />)}
                 {list.length > 4 && <i>+{list.length - 4}</i>}
               </span>
             </button>
@@ -937,8 +989,8 @@ function BigCalendar({ meals, onOpenMeal, onAddFor }) {
               <time>{fmtTime(m.eaten_at)}</time>
               {m.photo_preview
                 ? <img className="calendar-meal-photo" src={m.photo_preview} alt={`${m.food}的餐食照片`} />
-                : <FoodPhoto food={m.food} size={42} />}
-              <span className="calendar-meal-copy"><b>{m.food}</b><small><em>{m.amount_grams}克</em>{m.reaction}</small></span>
+                : <FoodIllustrations meal={m} size={36} className="calendar-card-foods" />}
+              <span className="calendar-meal-copy"><b>{mealFoodLabel(m)}</b><small><em>{m.amount_grams}克</em>{m.reaction}</small></span>
               <ChevronRight size={16} />
             </button>
           ))}
@@ -994,7 +1046,7 @@ function GrowthView({ meals, onOpenMeal, onAddFor, babyName }) {
   const stats = useMemo(() => {
     const days = new Set(meals.map(m => dayKeyOf(m.eaten_at)));
     const foods = new Map();
-    meals.forEach(m => foods.set(m.food, (foods.get(m.food) || 0) + 1));
+    meals.forEach(m => foodsForMeal(m).forEach(food => foods.set(food, (foods.get(food) || 0) + 1)));
     return { total: meals.length, days: days.size, photos: meals.filter(m => m.photo_preview).length, foods: [...foods.entries()].sort((a, b) => b[1] - a[1]) };
   }, [meals]);
   return (
@@ -1064,7 +1116,7 @@ function App() {
 
   const months = ageMonths(birth);
   const library = useMemo(() => mergeLibrary(customFoods), [customFoods]);
-  const tried = useMemo(() => new Set(meals.map(m => m.food)), [meals]);
+  const tried = useMemo(() => new Set(meals.flatMap(foodsForMeal)), [meals]);
   const todayMeals = useMemo(() => {
     const list = meals.filter(m => dayKeyOf(m.eaten_at) === todayKey());
     return list.sort((a, b) => sortBy === "time"
@@ -1211,7 +1263,7 @@ function App() {
         for (const pendingMeal of pending) {
           const photoPath = await uploadMealPhoto(user.id, pendingMeal);
           const { id, localId, time, asset, photo_preview, ...m } = pendingMeal;
-          rows.push({ ...m, photo_path: photoPath, user_id: user.id, emoji: emojiFor(m.food) });
+          rows.push({ ...m, foods: foodsForMeal(m), photo_path: photoPath, user_id: user.id, emoji: foodsForMeal(m).map(emojiFor).join("") });
         }
         const { error } = await supabase.from("meals").insert(rows);
         if (!error) localStorage.removeItem(pendingKey);
@@ -1230,9 +1282,9 @@ function App() {
               }
             }
             const { error } = await supabase.from("meals").update({
-              food: queued.food, amount_grams: queued.amount_grams, eaten_at: queued.eaten_at,
+              food: queued.food, foods: foodsForMeal(queued), amount_grams: queued.amount_grams, eaten_at: queued.eaten_at,
               reaction: queued.reaction, note: queued.note, food_source: queued.food_source,
-              remarks: queued.remarks, photo_path: photoPath, emoji: emojiFor(queued.food),
+              remarks: queued.remarks, photo_path: photoPath, emoji: foodsForMeal(queued).map(emojiFor).join(""),
             }).eq("id", queued.id);
             if (error) remainingUpdates.push(queued);
           } catch { remainingUpdates.push(queued); }
@@ -1291,9 +1343,10 @@ function App() {
   }, []);
 
   /* --- 记一餐 --- */
-  const removePlan = async (item, { quiet = false } = {}) => {
-    savePlan(plan.filter(p => p.food !== item.food));
-    const queueDelete = () => writeLocal(planDeletesKey, [...new Set([...readLocal(planDeletesKey, []), item.food])]);
+  const removePlansByFood = async (foodNames, { quiet = false } = {}) => {
+    const names = [...new Set(foodNames.filter(Boolean))];
+    savePlan(plan.filter(p => !names.includes(p.food)));
+    const queueDelete = () => writeLocal(planDeletesKey, [...new Set([...readLocal(planDeletesKey, []), ...names])]);
     if (!navigator.onLine) {
       queueDelete();
       if (!quiet) setNotice("已从计划移除，联网后会同步给家人");
@@ -1305,26 +1358,31 @@ function App() {
       if (!quiet) setNotice("已从本机计划移除，登录后会同步");
       return;
     }
-    const { error } = await supabase.from("food_plans").delete().eq("user_id", user.id).eq("food", item.food);
-    if (error) queueDelete();
+    let failed = false;
+    for (const food of names) {
+      const { error } = await supabase.from("food_plans").delete().eq("user_id", user.id).eq("food", food);
+      if (error) failed = true;
+    }
+    if (failed) queueDelete();
     else {
-      const remaining = readLocal(planDeletesKey, []).filter(food => food !== item.food);
+      const remaining = readLocal(planDeletesKey, []).filter(food => !names.includes(food));
       if (remaining.length) writeLocal(planDeletesKey, remaining);
       else localStorage.removeItem(planDeletesKey);
     }
-    if (!quiet) setNotice(error ? "已从计划移除，稍后自动同步" : "已从计划移除并同步给家人");
+    if (!quiet) setNotice(failed ? "已从计划移除，稍后自动同步" : "已从计划移除并同步给家人");
   };
+  const removePlan = (item, options) => removePlansByFood([item.food], options);
 
   const addMeal = async record => {
     const local = {
-      food: record.food, amount_grams: record.amount_grams, reaction: record.reaction, note: record.note,
+      food: record.food, foods: record.foods, amount_grams: record.amount_grams, reaction: record.reaction, note: record.note,
       food_source: record.food_source, remarks: record.remarks, photo_preview: record.photo_preview || null,
       id: `local-${Date.now()}`, eaten_at: isoFor(record.date || todayKey(), record.time),
     };
     saveMeals([...meals, local]);
     setSheetOpen(false);
-    const plannedItem = plan.find(item => item.food === record.food);
-    if (plannedItem) await removePlan(plannedItem, { quiet: true });
+    const plannedFoods = plan.filter(item => record.foods.includes(item.food)).map(item => item.food);
+    if (plannedFoods.length) await removePlansByFood(plannedFoods, { quiet: true });
     const queue = () => writeLocal(pendingKey, [...readLocal(pendingKey, []), local]);
     if (!navigator.onLine) { queue(); setNotice("已离线保存，联网后自动同步"); return; }
     const { data: { user } } = await supabase.auth.getUser();
@@ -1332,9 +1390,9 @@ function App() {
     try { local.photo_path = await uploadMealPhoto(user.id, local); }
     catch { queue(); setNotice("记录已保存在手机，照片会稍后自动同步"); return; }
     const { error } = await supabase.from("meals").insert({
-      user_id: user.id, food: local.food, amount_grams: local.amount_grams,
+      user_id: user.id, food: local.food, foods: local.foods, amount_grams: local.amount_grams,
       eaten_at: local.eaten_at, reaction: local.reaction, note: local.note,
-      food_source: local.food_source, remarks: local.remarks, photo_path: local.photo_path, emoji: emojiFor(local.food),
+      food_source: local.food_source, remarks: local.remarks, photo_path: local.photo_path, emoji: local.foods.map(emojiFor).join(""),
     });
     if (error) { queue(); setNotice("已保存在本机，稍后自动重试"); } else { setNotice("这一餐已同步给家人"); sync(); }
   };
@@ -1344,6 +1402,7 @@ function App() {
     const updated = {
       ...original,
       food: record.food,
+      foods: record.foods,
       amount_grams: record.amount_grams,
       reaction: record.reaction,
       note: record.note,
@@ -1382,9 +1441,9 @@ function App() {
         }
       }
       const { error } = await supabase.from("meals").update({
-        food: updated.food, amount_grams: updated.amount_grams, eaten_at: updated.eaten_at,
+        food: updated.food, foods: updated.foods, amount_grams: updated.amount_grams, eaten_at: updated.eaten_at,
         reaction: updated.reaction, note: updated.note, food_source: updated.food_source,
-        remarks: updated.remarks, photo_path: photoPath, emoji: emojiFor(updated.food),
+        remarks: updated.remarks, photo_path: photoPath, emoji: updated.foods.map(emojiFor).join(""),
       }).eq("id", original.id);
       if (error) throw error;
       if (photoPath !== updated.photo_path) saveMeals(meals.map(meal => meal.id === original.id ? { ...updated, photo_path: photoPath } : meal));

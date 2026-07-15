@@ -151,6 +151,11 @@
 /* ---------- 手机端食物选择器 ---------- */
 .food-field{position:relative;margin-top:16px}
 .food-field>label{margin-top:0}
+.food-field>label small{font-size:9px;color:var(--sage);font-weight:600;background:var(--sage-soft);border-radius:10px;padding:2px 7px;margin-left:5px}
+.selected-foods{display:flex;flex-wrap:wrap;gap:7px;margin:8px 0 9px}
+.selected-foods button{min-height:34px;border:1px solid #d4ddd0;border-radius:18px;background:var(--sage-soft);color:var(--ink);padding:5px 9px 5px 7px;display:flex;align-items:center;gap:5px;font-size:11px;font-weight:650}
+.selected-foods button span{width:23px;height:23px;border-radius:50%;background:#fff;display:grid;place-items:center;font-size:14px}
+.selected-foods button svg{color:var(--muted)}
 .food-input-wrap{position:relative}
 .food-input-wrap input{padding-right:52px}
 .food-picker-toggle{position:absolute;right:1px;top:8px;width:45px;height:44px;border:0;border-left:1px solid var(--line);border-radius:0 11px 11px 0;background:#fff;color:var(--ink);display:grid;place-items:center}
@@ -159,10 +164,31 @@
 .food-picker-menu{position:absolute;z-index:30;top:calc(100% + 7px);left:0;right:0;max-height:245px;overflow-y:auto;overscroll-behavior:contain;background:#fff;border:1px solid var(--line);border-radius:14px;padding:6px;box-shadow:0 14px 35px rgba(58,55,49,.14)}
 .food-picker-menu button{width:100%;min-height:44px;border:0;border-radius:10px;background:transparent;display:grid;grid-template-columns:30px auto 1fr;align-items:center;gap:7px;padding:6px 9px;text-align:left;color:var(--ink)}
 .food-picker-menu button:active,.food-picker-menu button[aria-selected="true"]{background:var(--sage-soft)}
+.food-picker-menu button[aria-selected="true"]{color:var(--sage)}
 .food-picker-menu button>span{font-size:20px}
 .food-picker-menu button>b{font-size:12px}
 .food-picker-menu button>small{font-size:10px;color:var(--muted);text-align:right}
 .food-picker-menu>p{font-size:11px;color:var(--muted);text-align:center;padding:14px 8px;margin:0}
+.food-picker-menu button.add-typed-food{border-top:1px solid var(--line);border-radius:0 0 10px 10px;margin-top:4px;color:var(--sage)}
+
+/* ---------- 混合餐食插画 ---------- */
+.food-illustrations{position:relative;display:inline-flex;align-items:center;isolation:isolate;flex:0 0 auto}
+.food-illustrations>.food-photo,.food-illustrations>.food-emoji{position:relative;flex:0 0 auto;border:2px solid #fff;box-shadow:0 3px 10px rgba(67,73,62,.1)}
+.food-illustrations>.food-photo:not(:first-child),.food-illustrations>.food-emoji:not(:first-child){margin-left:-17px}
+.food-illustrations>.food-photo:nth-child(1),.food-illustrations>.food-emoji:nth-child(1){z-index:4}
+.food-illustrations>.food-photo:nth-child(2),.food-illustrations>.food-emoji:nth-child(2){z-index:3}
+.food-illustrations>.food-photo:nth-child(3),.food-illustrations>.food-emoji:nth-child(3){z-index:2}
+.food-illustrations>.food-photo:nth-child(4),.food-illustrations>.food-emoji:nth-child(4){z-index:1}
+.food-illustrations>i{position:absolute;right:-6px;bottom:-4px;z-index:6;min-width:20px;height:20px;border-radius:10px;background:var(--sage);color:#fff;border:2px solid #fff;display:grid;place-items:center;font-size:8px;font-style:normal}
+.meal-row>.food-illustrations{width:76px}
+.detail-food-stack>.food-photo:not(:first-child),.detail-food-stack>.food-emoji:not(:first-child){margin-left:-13px}
+.detail-food-illustrations{min-width:108px;justify-content:flex-start}
+.detail-food-illustrations>.food-photo:not(:first-child),.detail-food-illustrations>.food-emoji:not(:first-child){margin-left:-24px}
+.detail-body.no-meal-photo:has(.detail-food-illustrations){grid-template-columns:108px 1fr}
+.calendar-card-foods{width:62px}
+.calendar-card-foods>.food-photo:not(:first-child),.calendar-card-foods>.food-emoji:not(:first-child){margin-left:-15px}
+.calendar-food-stack>.food-photo:not(:first-child),.calendar-food-stack>.food-emoji:not(:first-child){margin-left:-8px}
+.day-foods .food-illustrations{max-width:28px}
 .baby-identity{min-width:0}
 .baby-identity>div{gap:7px}
 .baby-identity .age-editor span{font-size:11px;white-space:nowrap}
