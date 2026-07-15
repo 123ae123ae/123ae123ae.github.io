@@ -4,6 +4,7 @@ dist/
 design-qa.md
 AGENTS.md
 .playwright-cli/
+output/
 *.log
 .env*
 !.env.example

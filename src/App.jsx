@@ -2,9 +2,11 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import * as Dialog from "@radix-ui/react-dialog";
 import { motion, AnimatePresence } from "motion/react";
 import { createClient } from "@supabase/supabase-js";
+import { chooseActiveBaby, chooseActiveFamily, recordScope, scopedStorageKey } from "./familyScope.js";
+import { languages, translate } from "./i18n.js";
 import {
   Activity, AlertTriangle, ArrowUp, Baby, CalendarDays, Camera, Check, ChevronDown, ChevronLeft, ChevronRight,
-  ClipboardList, Download, ImagePlus, Images, Library, LogOut, Mail, Pencil, Plus, RefreshCw, Share2, ShieldCheck, Sparkles, Sprout, Trash2, X,
+  ClipboardList, Copy, Download, Home, ImagePlus, Images, Languages, Library, LogOut, Mail, Pencil, Plus, RefreshCw, Settings, Share2, ShieldCheck, Sparkles, Sprout, Trash2, UserPlus, Users, X,
 } from "lucide-react";
 
 const supabase = createClient("https://vqxzrydqnlpxyjafjdoh.supabase.co", "sb_publishable_Pn-dEaqu0oWYJ8eK8OgUAg_PPORfQFF");
@@ -204,10 +206,10 @@ const blobToDataUrl = blob => new Promise((resolve, reject) => {
   reader.onload = () => resolve(reader.result);
   reader.readAsDataURL(blob);
 });
-const uploadMealPhoto = async (userId, meal) => {
+const uploadMealPhoto = async (familyId, babyId, meal) => {
   if (!meal.photo_preview) return meal.photo_path || null;
   const safeId = String(meal.id || `meal-${Date.now()}`).replace(/[^a-zA-Z0-9-]/g, "");
-  const path = meal.photo_path || `${userId}/${safeId}.webp`;
+  const path = meal.photo_path || `${familyId}/${babyId}/${safeId}.webp`;
   const blob = await dataUrlToBlob(meal.photo_preview);
   const { error } = await supabase.storage.from("meal-photos").upload(path, blob, {
     contentType: "image/webp", cacheControl: "3600", upsert: true,
@@ -338,7 +340,7 @@ function Choices({ title, value, setValue, items }) {
   );
 }
 
-function AddMealDialog({ open, prefill, onOpenChange, onSave }) {
+function AddMealDialog({ open, prefill, onOpenChange, onSave, babyName }) {
   const editingMeal = prefill?.meal || null;
   const [foods, setFoods] = useState([]);
   const [foodQuery, setFoodQuery] = useState("");
@@ -416,6 +418,7 @@ function AddMealDialog({ open, prefill, onOpenChange, onSave }) {
             if (!finalFoods.length || photoBusy) return;
             onSave({ food: finalFoods.join("、"), foods: finalFoods, amount_grams: Number(amount) || 0, date, time, reaction, note: body, food_source: source, remarks: remarks.trim(), photo_preview: photo }, editingMeal);
           }}>
+            {babyName && <div className="record-baby-banner"><Baby size={17} /><span>这条记录属于</span><b>{babyName}</b></div>}
             <div className="food-field">
               <label htmlFor="meal-food">吃了什么 <small>可多选</small></label>
               {foods.length > 0 && (
@@ -1075,6 +1078,203 @@ function GrowthView({ meals, onOpenMeal, onAddFor, babyName }) {
   );
 }
 
+const friendlyFamilyError = error => {
+  const message = String(error?.message || error || "");
+  if (message.includes("already_family_member")) return "这个邮箱已经是家庭成员了";
+  if (message.includes("invitation_exists")) return "这个邮箱已经有一份待接受的邀请";
+  if (message.includes("invitation_expired")) return "邀请已经过期，请让家人重新生成";
+  if (message.includes("invitation_email_mismatch")) return "请使用收到邀请的邮箱登录";
+  if (message.includes("owner_must_transfer")) return "所有者需要先转让家庭，或删除家庭";
+  if (message.includes("permission") || message.includes("owner_required")) return "你没有执行这个操作的权限";
+  return "操作没有完成，请检查网络后重试";
+};
+
+function FamilyOnboarding({ user, inviteToken, onCreate, onAcceptInvite, onOpenAuth, busy, message, locale }) {
+  const [familyName, setFamilyName] = useState("我们的家庭");
+  const t = key => translate(locale, key);
+  return (
+    <div className="family-gate">
+      <div className="family-gate-card">
+        <div className="account-mark"><Home size={27} /></div>
+        <h1>宝贝食光</h1>
+        <p>{t("createOrJoin")}</p>
+        {!user ? (
+          <button className="save-button" onClick={onOpenAuth}><Mail size={17} />登录或注册</button>
+        ) : <>
+          {inviteToken && (
+            <section className="invite-gate-card">
+              <UserPlus size={20} />
+              <div><b>{t("joinFamily")}</b><small>邀请会验证登录邮箱、有效期和使用状态。</small></div>
+              <button onClick={onAcceptInvite} disabled={busy}>接受邀请</button>
+            </section>
+          )}
+          <form onSubmit={e => { e.preventDefault(); onCreate(familyName); }}>
+            <label>家庭名称<input value={familyName} onChange={e => setFamilyName(e.target.value)} maxLength={80} required /></label>
+            <button className="save-button" disabled={busy}><Home size={17} />{busy ? "正在创建…" : t("createFamily")}</button>
+          </form>
+          <button className="secondary-button" onClick={onOpenAuth}><Settings size={16} />查看账号</button>
+        </>}
+        {message && <p className="auth-message">{message}</p>}
+      </div>
+    </div>
+  );
+}
+
+function BabyManagerDialog({ open, onOpenChange, family, role, babies, activeBaby, locale, onSwitch, onSave, onDelete, onMove }) {
+  const [editing, setEditing] = useState(null);
+  const [deleteTarget, setDeleteTarget] = useState(null);
+  const [confirmName, setConfirmName] = useState("");
+  const [nickname, setNickname] = useState("");
+  const [birthDate, setBirthDate] = useState("");
+  const [gender, setGender] = useState("unspecified");
+  const [notes, setNotes] = useState("");
+  const [copyPlan, setCopyPlan] = useState(false);
+  const [avatarFile, setAvatarFile] = useState(null);
+  const canManage = role === "owner" || role === "admin";
+  const t = key => translate(locale, key);
+  useEffect(() => {
+    if (!editing) return;
+    const baby = editing === "new" ? null : editing;
+    setNickname(baby?.nickname || ""); setBirthDate(baby?.birth_date || "");
+    setGender(baby?.gender || "unspecified"); setNotes(baby?.notes || ""); setCopyPlan(false); setAvatarFile(null);
+  }, [editing]);
+  return (
+    <Dialog.Root open={open} onOpenChange={onOpenChange}>
+      <Dialog.Portal>
+        <Dialog.Overlay className="dialog-overlay" />
+        <Dialog.Content className="meal-sheet baby-manager-sheet">
+          <div className="sheet-grabber" />
+          <div className="sheet-head"><div><Dialog.Title>{t("manageBabies")}</Dialog.Title><Dialog.Description>{family?.name || "家庭"} · 每个宝宝的数据完全独立</Dialog.Description></div><Dialog.Close className="icon-button"><X size={20} /></Dialog.Close></div>
+          {!editing && !deleteTarget && <>
+            <div className="baby-manager-list">
+              {babies.map((baby, index) => (
+                <article className={baby.id === activeBaby?.id ? "active" : ""} key={baby.id}>
+                  <button className="baby-switch-main" onClick={() => onSwitch(baby)}>
+                    <img src={baby.avatar_url || "/assets/baby-avatar.png"} alt="" />
+                    <span><b>{baby.nickname}</b><small>{baby.birth_date ? ageLabel(baby.birth_date) : "未填写出生日期"}{baby.id === activeBaby?.id ? " · 当前宝宝" : ""}</small></span>
+                    {baby.id === activeBaby?.id && <Check size={18} />}
+                  </button>
+                  <div className="baby-row-actions">
+                    {canManage && <button onClick={() => setEditing(baby)}><Pencil size={14} />编辑</button>}
+                    {canManage && <button disabled={index === 0} onClick={() => onMove(baby, -1)}>↑</button>}
+                    {canManage && <button disabled={index === babies.length - 1} onClick={() => onMove(baby, 1)}>↓</button>}
+                    {role === "owner" && <button className="danger-text" onClick={() => { setDeleteTarget(baby); setConfirmName(""); }}><Trash2 size={14} />删除</button>}
+                  </div>
+                </article>
+              ))}
+              {!babies.length && <div className="empty-babies"><Baby size={30} /><b>{t("noBaby")}</b><p>添加第一个宝宝后即可开始记录。</p></div>}
+            </div>
+            {canManage && <button className="save-button" onClick={() => setEditing("new")}><Plus size={18} />{t("addBaby")}</button>}
+          </>}
+          {editing && (
+            <form className="baby-form" onSubmit={e => { e.preventDefault(); onSave({ id: editing === "new" ? null : editing.id, nickname: nickname.trim(), birth_date: birthDate || null, gender: gender === "unspecified" ? null : gender, notes: notes.trim() || null, copyPlan, avatarFile }); setEditing(null); }}>
+              <p className="form-guidance">{t("useNickname")}</p>
+              <label>{t("babyNickname")}<input value={nickname} onChange={e => setNickname(e.target.value)} maxLength={60} required /></label>
+              <label>出生日期（可选）<input type="date" value={birthDate} max={todayKey()} onChange={e => setBirthDate(e.target.value)} /></label>
+              <label>性别（可选）<select value={gender} onChange={e => setGender(e.target.value)}><option value="unspecified">不填写</option><option value="female">女宝宝</option><option value="male">男宝宝</option><option value="other">其他</option></select></label>
+              <label>备注（可选）<textarea rows="3" maxLength="2000" value={notes} onChange={e => setNotes(e.target.value)} placeholder="例如：双胞胎中的姐姐、特别注意事项等" /></label>
+              <label>头像（可选）<input type="file" accept="image/jpeg,image/png,image/webp" onChange={e => setAvatarFile(e.target.files?.[0] || null)} /></label>
+              {editing === "new" && babies.length > 0 && <label className="copy-plan-option"><input type="checkbox" checked={copyPlan} onChange={e => setCopyPlan(e.target.checked)} /><Copy size={16} /><span>复制上一位宝宝的基础计划<small>只复制食材计划，不复制实际餐食记录。</small></span></label>}
+              <div className="dialog-actions"><button type="button" className="secondary-button" onClick={() => setEditing(null)}>取消</button><button className="save-button">保存宝宝资料</button></div>
+            </form>
+          )}
+          {deleteTarget && (
+            <div className="destructive-confirm">
+              <AlertTriangle size={28} />
+              <h3>永久删除“{deleteTarget.nickname}”</h3>
+              <p>将删除：餐食记录、身体反应、备注、照片、食材计划和提醒。此操作不可恢复，但不会影响家庭中的其他宝宝。</p>
+              <label>请输入宝宝昵称确认<input value={confirmName} onChange={e => setConfirmName(e.target.value)} placeholder={deleteTarget.nickname} /></label>
+              <div className="dialog-actions"><button className="secondary-button" onClick={() => setDeleteTarget(null)}>取消</button><button className="danger-button" disabled={confirmName !== deleteTarget.nickname} onClick={() => { onDelete(deleteTarget); setDeleteTarget(null); }}>永久删除</button></div>
+            </div>
+          )}
+        </Dialog.Content>
+      </Dialog.Portal>
+    </Dialog.Root>
+  );
+}
+
+function FamilySettingsDialog({ open, onOpenChange, user, family, membership, memberships = [], locale, onLocale, onSwitchFamily, onReload, onSignedOut }) {
+  const [members, setMembers] = useState([]);
+  const [email, setEmail] = useState("");
+  const [inviteLink, setInviteLink] = useState("");
+  const [message, setMessage] = useState("");
+  const [busy, setBusy] = useState(false);
+  const role = membership?.role;
+  const canManage = role === "owner" || role === "admin";
+  const t = key => translate(locale, key);
+  const loadMembers = async () => {
+    if (!family?.id) return;
+    const { data, error } = await supabase.rpc("list_family_members", { p_family_id: family.id });
+    if (error) setMessage(friendlyFamilyError(error)); else setMembers(data || []);
+  };
+  useEffect(() => { if (open) { setMessage(""); setInviteLink(""); loadMembers(); } }, [open, family?.id]);
+  const invite = async e => {
+    e.preventDefault(); setBusy(true); setMessage("");
+    const { data, error } = await supabase.rpc("create_family_invitation", { p_family_id: family.id, p_email: email.trim() });
+    setBusy(false);
+    if (error) { setMessage(friendlyFamilyError(error)); return; }
+    const token = data?.[0]?.token;
+    const link = `${location.origin}${location.pathname}?invite=${encodeURIComponent(token)}`;
+    setInviteLink(link); setMessage("邀请已生成，把链接发给家人即可");
+  };
+  const changeRole = async (member, nextRole) => {
+    const { error } = await supabase.from("family_members").update({ role: nextRole }).eq("family_id", family.id).eq("user_id", member.user_id);
+    if (error) setMessage(friendlyFamilyError(error)); else loadMembers();
+  };
+  const removeMember = async member => {
+    if (!confirm(`从家庭移除 ${member.display_name || member.email}？`)) return;
+    const { error } = await supabase.from("family_members").delete().eq("family_id", family.id).eq("user_id", member.user_id);
+    if (error) setMessage(friendlyFamilyError(error)); else loadMembers();
+  };
+  const transfer = async member => {
+    if (!confirm(`将“${family.name}”的所有权转让给 ${member.display_name || member.email}？`)) return;
+    const { error } = await supabase.rpc("transfer_family_ownership", { p_family_id: family.id, p_new_owner: member.user_id });
+    if (error) setMessage(friendlyFamilyError(error)); else { setMessage("所有权已转让"); onReload(); loadMembers(); }
+  };
+  const leave = async () => {
+    if (!confirm(`退出“${family.name}”？家庭数据不会被删除。`)) return;
+    const { error } = await supabase.rpc("leave_family", { p_family_id: family.id });
+    if (error) setMessage(friendlyFamilyError(error)); else { onOpenChange(false); onReload(); }
+  };
+  const invokeAction = async body => {
+    const { data, error } = await supabase.functions.invoke("family-account-actions", { body });
+    if (error || data?.error) throw new Error(data?.error || error?.message);
+    return data;
+  };
+  const deleteFamily = async () => {
+    const typed = prompt(`此操作不可恢复。请输入家庭名称“${family.name}”确认：`);
+    if (typed !== family.name || !confirm("最后确认：删除全部宝宝、记录、计划、提醒和照片？")) return;
+    try { setBusy(true); await invokeAction({ action: "delete_family", family_id: family.id }); onOpenChange(false); onReload(); }
+    catch (error) { setMessage(friendlyFamilyError(error)); } finally { setBusy(false); }
+  };
+  const deleteAccount = async () => {
+    const typed = prompt(`删除账号不可恢复。请输入当前邮箱“${user.email}”确认：`);
+    if (typed !== user.email || !confirm("最后确认删除账号？如果你是唯一所有者，也会删除该家庭全部数据。")) return;
+    try { setBusy(true); await invokeAction({ action: "delete_account", delete_solo_families: true }); localStorage.clear(); onSignedOut(); }
+    catch (error) {
+      const raw = String(error.message || error);
+      setMessage(raw.includes("transfer_required") ? "请先把家庭所有权转让给其他成员" : friendlyFamilyError(error));
+    } finally { setBusy(false); }
+  };
+  return (
+    <Dialog.Root open={open} onOpenChange={onOpenChange}>
+      <Dialog.Portal><Dialog.Overlay className="dialog-overlay" /><Dialog.Content className="meal-sheet family-settings-sheet">
+        <div className="sheet-grabber" /><div className="sheet-head"><div><Dialog.Title>{t("familySettings")}</Dialog.Title><Dialog.Description>{family?.name} · {t(role || "member")}</Dialog.Description></div><Dialog.Close className="icon-button"><X size={20} /></Dialog.Close></div>
+        {memberships.length > 1 && <section className="settings-section"><h3><Home size={17} />当前家庭</h3><select value={family.id} onChange={e => onSwitchFamily(e.target.value)}>{memberships.map(item => <option key={item.family_id} value={item.family_id}>{item.family?.name || "家庭"}</option>)}</select></section>}
+        <section className="settings-section"><h3><Users size={17} />{t("familyMembers")}</h3>
+          <div className="member-list">{members.map(member => <article key={member.user_id}><span className="member-avatar">{(member.display_name || member.email || "家")[0]}</span><div><b>{member.display_name || member.email}</b><small>{member.email} · {t(member.role)}</small></div>{role === "owner" && member.role !== "owner" && <div className="member-actions"><select value={member.role} onChange={e => changeRole(member,e.target.value)}><option value="admin">{t("admin")}</option><option value="member">{t("member")}</option></select><button onClick={() => transfer(member)}>转让</button><button onClick={() => removeMember(member)}>移除</button></div>}</article>)}</div>
+          {canManage && <form className="invite-form" onSubmit={invite}><label>家人的邮箱<input type="email" value={email} onChange={e => setEmail(e.target.value)} required /></label><button className="save-button" disabled={busy}><UserPlus size={17} />{t("inviteMember")}</button></form>}
+          {inviteLink && <div className="invite-link"><input value={inviteLink} readOnly /><button onClick={async () => { await navigator.clipboard.writeText(inviteLink); setMessage("邀请链接已复制"); }}><Copy size={15} />复制</button></div>}
+        </section>
+        <section className="settings-section"><h3><Languages size={17} />语言</h3><select value={locale} onChange={e => onLocale(e.target.value)}>{languages.map(language => <option key={language.code} value={language.code}>{language.label}</option>)}</select></section>
+        <section className="settings-section"><h3><Mail size={17} />登录状态</h3><p className="settings-account-email">{user.email}</p><button className="logout-button" onClick={async () => { await supabase.auth.signOut({ scope: "local" }); onOpenChange(false); onSignedOut(); }}><LogOut size={16} />退出这台设备</button></section>
+        <section className="settings-section danger-zone"><h3>账户与隐私</h3>{role !== "owner" && <button onClick={leave}><LogOut size={16} />{t("leaveFamily")}</button>}{role === "owner" && <button onClick={deleteFamily} disabled={busy}><Trash2 size={16} />{t("deleteFamily")}</button>}<button onClick={deleteAccount} disabled={busy}><Trash2 size={16} />{t("deleteAccount")}</button><p>删除操作不可恢复。共享家庭数据是否保留，取决于你的家庭角色和所有权状态。</p></section>
+        {message && <p className="auth-message">{message}</p>}
+      </Dialog.Content></Dialog.Portal>
+    </Dialog.Root>
+  );
+}
+
 /* ---------- 主应用 ---------- */
 function App() {
   const contentRef = useRef(null);
@@ -1105,7 +1305,20 @@ function App() {
   const [notice, setNotice] = useState("");
   const [syncStatus, setSyncStatus] = useState("");
   const [currentUser, setCurrentUser] = useState(null);
+  const [authReady, setAuthReady] = useState(false);
+  const [familyLoading, setFamilyLoading] = useState(true);
+  const [memberships, setMemberships] = useState([]);
+  const [activeMembership, setActiveMembership] = useState(null);
+  const [activeFamily, setActiveFamily] = useState(null);
+  const [babies, setBabies] = useState([]);
+  const [activeBaby, setActiveBaby] = useState(null);
+  const [babyManagerOpen, setBabyManagerOpen] = useState(false);
+  const [familySettingsOpen, setFamilySettingsOpen] = useState(false);
+  const [familyGateMessage, setFamilyGateMessage] = useState("");
+  const [familyBusy, setFamilyBusy] = useState(false);
+  const [locale, setLocale] = useState(() => localStorage.getItem("baby-journal-locale") || "zh-CN");
   const [showScrollTop, setShowScrollTop] = useState(false);
+  const inviteToken = useMemo(() => new URLSearchParams(location.search).get("invite") || "", []);
 
   const scrollToTop = () => {
     contentRef.current?.scrollTo({
@@ -1129,11 +1342,16 @@ function App() {
     [library, months, tried],
   );
 
-  const saveMeals = next => { setMeals(next); writeLocal(mealsKey, next); };
-  const savePlan = next => { setPlan(next); writeLocal(planKey, next); };
+  const cacheKey = (base, babyId = activeBaby?.id) => scopedStorageKey(base, babyId);
+  const saveMeals = (next, babyId = activeBaby?.id) => { setMeals(next); writeLocal(cacheKey(mealsKey, babyId), next); };
+  const savePlan = (next, babyId = activeBaby?.id) => { setPlan(next); writeLocal(cacheKey(planKey, babyId), next); };
   const saveCustomFoods = next => {
     setCustomFoods(next);
-    try { writeLocal(customFoodsKey, next); } catch { setNotice("手机存储空间不够了，照片没能保存"); }
+    try { writeLocal(cacheKey(customFoodsKey), next); } catch { setNotice("手机存储空间不够了，照片没能保存"); }
+    if (navigator.onLine && currentUser?.id && activeFamily?.id && activeBaby?.id) {
+      supabase.from("baby_foods").upsert({ family_id: activeFamily.id, baby_id: activeBaby.id, settings: next, updated_by: currentUser.id, updated_at: new Date().toISOString() }, { onConflict: "baby_id" })
+        .then(({ error }) => { if (error) setNotice("食物库修改已保存在手机，稍后同步"); });
+    }
   };
   const storeBabyProfile = ({ name, birth: birthDate }) => {
     setBabyName(name);
@@ -1147,13 +1365,70 @@ function App() {
     if (!navigator.onLine) { setNotice("宝宝资料已保存在手机，联网后同步"); return; }
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) { setNotice("宝宝资料已保存在手机，登录后同步"); return; }
-    const { error } = await supabase.from("baby_profiles").upsert({
-      user_id: user.id,
-      baby_name: profile.name,
-      birth_date: profile.birth,
+    if (!activeBaby?.id) return;
+    const { data, error } = await supabase.from("babies").update({
+      nickname: profile.name,
+      birth_date: profile.birth || null,
       updated_at: new Date().toISOString(),
-    });
+    }).eq("id", activeBaby.id).eq("family_id", activeFamily.id).select().single();
+    if (data) {
+      setBabies(current => current.map(baby => baby.id === data.id ? data : baby));
+      setActiveBaby(data);
+    }
     setNotice(error ? "宝宝资料已保存在手机，稍后自动同步" : "宝宝资料已同步给家人");
+  };
+
+  const activateBaby = async (baby, family = activeFamily, user = currentUser) => {
+    if (!baby || !family) return;
+    setActiveBaby(baby); setBabyName(baby.nickname); setBirth(baby.birth_date || "");
+    localStorage.setItem(`active-baby-${user?.id || "local"}`, baby.id);
+    const scopedMeals = readLocal(scopedStorageKey(mealsKey, baby.id), null);
+    const scopedPlans = readLocal(scopedStorageKey(planKey, baby.id), null);
+    const legacyMigrated = localStorage.getItem("baby-cache-scoped-v1") === "yes";
+    const nextMeals = scopedMeals ?? (!legacyMigrated ? readLocal(mealsKey, []) : []);
+    const nextPlan = scopedPlans ?? (!legacyMigrated ? readLocal(planKey, []) : []);
+    if (!legacyMigrated) {
+      writeLocal(scopedStorageKey(mealsKey, baby.id), nextMeals);
+      writeLocal(scopedStorageKey(planKey, baby.id), nextPlan);
+      localStorage.setItem("baby-cache-scoped-v1", "yes");
+    }
+    setMeals(nextMeals); setPlan(nextPlan);
+    setCustomFoods(readLocal(scopedStorageKey(customFoodsKey, baby.id), readLocal(customFoodsKey, [])));
+    setAvatar("/assets/baby-avatar.png");
+    if (baby.avatar_path && navigator.onLine) {
+      const { data: blob } = await supabase.storage.from("baby-avatars").download(baby.avatar_path);
+      if (blob) setAvatar(URL.createObjectURL(blob));
+    }
+    if (user) await supabase.from("user_preferences").upsert({ user_id: user.id, active_family_id: family.id, active_baby_id: baby.id, locale, updated_at: new Date().toISOString() });
+  };
+
+  const loadFamilyContext = async (user = currentUser) => {
+    setFamilyLoading(true);
+    if (!user) {
+      setMemberships([]); setActiveMembership(null); setActiveFamily(null); setBabies([]); setActiveBaby(null); setFamilyLoading(false); return null;
+    }
+    const [{ data: membershipRows, error: membershipError }, { data: preference }] = await Promise.all([
+      supabase.from("family_members").select("family_id,role,joined_at,families!inner(id,name,owner_id,created_at,updated_at)").eq("user_id", user.id).order("joined_at"),
+      supabase.from("user_preferences").select("active_family_id,active_baby_id,locale").eq("user_id", user.id).maybeSingle(),
+    ]);
+    if (membershipError) { setFamilyGateMessage("家庭资料暂时无法加载，请检查网络"); setFamilyLoading(false); return null; }
+    const rows = (membershipRows || []).map(row => ({ ...row, family: Array.isArray(row.families) ? row.families[0] : row.families }));
+    setMemberships(rows);
+    if (preference?.locale) { setLocale(preference.locale); localStorage.setItem("baby-journal-locale", preference.locale); }
+    const chosenMembership = chooseActiveFamily(rows, preference?.active_family_id, localStorage.getItem(`active-family-${user.id}`));
+    if (!chosenMembership) {
+      setActiveMembership(null); setActiveFamily(null); setBabies([]); setActiveBaby(null); setFamilyLoading(false); return null;
+    }
+    const family = chosenMembership.family;
+    setActiveMembership(chosenMembership); setActiveFamily(family); localStorage.setItem(`active-family-${user.id}`, family.id);
+    const { data: babyRows, error: babyError } = await supabase.from("babies").select("*").eq("family_id", family.id).order("display_order").order("created_at");
+    if (babyError) { setFamilyGateMessage("宝宝资料暂时无法加载"); setFamilyLoading(false); return null; }
+    const nextBabies = babyRows || []; setBabies(nextBabies);
+    const chosenBaby = chooseActiveBaby(nextBabies, preference?.active_baby_id, localStorage.getItem(`active-baby-${user.id}`));
+    if (chosenBaby) await activateBaby(chosenBaby, family, user);
+    else { setActiveBaby(null); setMeals([]); setPlan([]); }
+    setFamilyLoading(false);
+    return { family, baby: chosenBaby };
   };
 
   const saveFood = (data, original) => {
@@ -1192,90 +1467,73 @@ function App() {
     setNotice(`已恢复 ${count} 个内置食物`);
   };
 
-  /* --- 云同步 --- */
-  const sync = async () => {
-    if (!navigator.onLine) return;
+  /* --- 云同步：数据库查询和本地队列都锁定当前宝宝 --- */
+  const sync = async (scopeFamily = activeFamily, scopeBaby = activeBaby) => {
+    if (!navigator.onLine || !scopeFamily?.id || !scopeBaby?.id) return;
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
-      const { data: profile } = await supabase.from("baby_profiles").select("baby_name,birth_date,avatar_path").eq("user_id", user.id).maybeSingle();
-      const localName = user.user_metadata?.baby_name || localStorage.getItem(babyNameKey) || "Elnaz";
-      const localBirth = user.user_metadata?.birth_date || localStorage.getItem(birthKey) || "2026-02-13";
-      if (profile?.baby_name) {
-        setBabyName(profile.baby_name);
-        localStorage.setItem(babyNameKey, profile.baby_name);
-      }
-      if (profile?.birth_date) {
-        setBirth(profile.birth_date);
-        localStorage.setItem(birthKey, profile.birth_date);
-      }
-      if (!profile || !profile.birth_date) {
-        await supabase.from("baby_profiles").upsert({
-          user_id: user.id,
-          baby_name: profile?.baby_name || localName,
-          birth_date: profile?.birth_date || localBirth,
-          avatar_path: profile?.avatar_path || null,
-          updated_at: new Date().toISOString(),
-        });
-      }
-      if (profile?.avatar_path) {
-        const { data: blob } = await supabase.storage.from("baby-avatars").download(profile.avatar_path);
-        if (blob) setAvatar(URL.createObjectURL(blob));
+      const scope = recordScope(scopeFamily, scopeBaby, user.id);
+      const pendingQueueKey = scopedStorageKey(pendingKey, scopeBaby.id);
+      const updateQueueKey = scopedStorageKey(pendingUpdatesKey, scopeBaby.id);
+      const deleteQueueKey = scopedStorageKey(planDeletesKey, scopeBaby.id);
+      const localPlanKey = scopedStorageKey(planKey, scopeBaby.id);
+
+      const localFoodSettings = readLocal(scopedStorageKey(customFoodsKey, scopeBaby.id), []);
+      if (localFoodSettings.length) await supabase.from("baby_foods").upsert({ family_id: scope.family_id, baby_id: scope.baby_id, settings: localFoodSettings, updated_by: user.id, updated_at: new Date().toISOString() }, { onConflict: "baby_id" });
+      const { data: cloudFoodSettings } = await supabase.from("baby_foods").select("settings").eq("family_id", scope.family_id).eq("baby_id", scope.baby_id).maybeSingle();
+      if (cloudFoodSettings?.settings) {
+        setCustomFoods(cloudFoodSettings.settings);
+        writeLocal(scopedStorageKey(customFoodsKey, scopeBaby.id), cloudFoodSettings.settings);
       }
 
       // 先处理离线期间删除的计划，再上传本机计划，最后合并家庭云端计划。
-      const queuedPlanDeletes = [...new Set(readLocal(planDeletesKey, []))];
+      const queuedPlanDeletes = [...new Set(readLocal(deleteQueueKey, []))];
       const remainingPlanDeletes = [];
       for (const food of queuedPlanDeletes) {
-        const { error } = await supabase.from("food_plans").delete().eq("user_id", user.id).eq("food", food);
+        const { error } = await supabase.from("food_plans").delete().eq("family_id", scope.family_id).eq("baby_id", scope.baby_id).eq("food", food);
         if (error) remainingPlanDeletes.push(food);
       }
-      if (remainingPlanDeletes.length) writeLocal(planDeletesKey, remainingPlanDeletes);
-      else localStorage.removeItem(planDeletesKey);
+      if (remainingPlanDeletes.length) writeLocal(deleteQueueKey, remainingPlanDeletes);
+      else localStorage.removeItem(deleteQueueKey);
 
-      const localPlans = [...new Map(readLocal(planKey, []).map(item => [item.food, item])).values()];
-      const planMigrationKey = `baby-plan-cloud-ready-v1-${user.id}`;
-      const needsLegacyUpload = localStorage.getItem(planMigrationKey) !== "yes";
-      const plansToUpload = needsLegacyUpload
-        ? localPlans
-        : localPlans.filter(item => String(item.id).startsWith("plan-"));
+      const localPlans = [...new Map(readLocal(localPlanKey, []).map(item => [item.food, item])).values()];
+      const plansToUpload = localPlans.filter(item => String(item.id).startsWith("plan-"));
       let plansUploadSucceeded = true;
       if (plansToUpload.length) {
         const { error } = await supabase.from("food_plans").upsert(
-          plansToUpload.map(item => ({ user_id: user.id, food: item.food, amount: item.amount || null })),
-          { onConflict: "user_id,food" },
+          plansToUpload.map(item => ({ ...scope, food: item.food, amount: item.amount || null })),
+          { onConflict: "baby_id,food" },
         );
         plansUploadSucceeded = !error;
       }
-      const { data: cloudPlans } = await supabase.from("food_plans").select("id,food,amount,created_at").order("created_at");
+      const { data: cloudPlans } = await supabase.from("food_plans").select("id,food,amount,created_at").eq("family_id", scope.family_id).eq("baby_id", scope.baby_id).order("created_at");
       if (cloudPlans) {
         const deletedFoods = new Set(remainingPlanDeletes);
-        const localMergeBase = needsLegacyUpload ? localPlans : plansToUpload;
-        const mergedPlans = new Map(localMergeBase.map(item => [item.food, item]));
+        const mergedPlans = new Map(plansToUpload.map(item => [item.food, item]));
         cloudPlans.filter(item => !deletedFoods.has(item.food)).forEach(item => mergedPlans.set(item.food, item));
-        savePlan([...mergedPlans.values()]);
-        if (plansUploadSucceeded) localStorage.setItem(planMigrationKey, "yes");
+        savePlan([...mergedPlans.values()], scopeBaby.id);
       }
 
-      const pending = readLocal(pendingKey, []);
+      const pending = readLocal(pendingQueueKey, []);
       if (pending.length) {
         const rows = [];
         for (const pendingMeal of pending) {
-          const photoPath = await uploadMealPhoto(user.id, pendingMeal);
+          const photoPath = await uploadMealPhoto(scope.family_id, scope.baby_id, pendingMeal);
           const { id, localId, time, asset, photo_preview, ...m } = pendingMeal;
-          rows.push({ ...m, foods: foodsForMeal(m), photo_path: photoPath, user_id: user.id, emoji: foodsForMeal(m).map(emojiFor).join("") });
+          rows.push({ ...m, ...scope, foods: foodsForMeal(m), photo_path: photoPath, emoji: foodsForMeal(m).map(emojiFor).join("") });
         }
         const { error } = await supabase.from("meals").insert(rows);
-        if (!error) localStorage.removeItem(pendingKey);
+        if (!error) localStorage.removeItem(pendingQueueKey);
       }
-      const pendingUpdates = readLocal(pendingUpdatesKey, []);
+      const pendingUpdates = readLocal(updateQueueKey, []);
       if (pendingUpdates.length) {
         const remainingUpdates = [];
         for (const queued of pendingUpdates) {
           try {
             let photoPath = queued.photo_path || null;
             if (queued.photo_changed) {
-              if (queued.photo_preview) photoPath = await uploadMealPhoto(user.id, { ...queued, photo_path: photoPath });
+              if (queued.photo_preview) photoPath = await uploadMealPhoto(scope.family_id, scope.baby_id, { ...queued, photo_path: photoPath });
               else if (photoPath) {
                 await supabase.storage.from("meal-photos").remove([photoPath]);
                 photoPath = null;
@@ -1285,16 +1543,16 @@ function App() {
               food: queued.food, foods: foodsForMeal(queued), amount_grams: queued.amount_grams, eaten_at: queued.eaten_at,
               reaction: queued.reaction, note: queued.note, food_source: queued.food_source,
               remarks: queued.remarks, photo_path: photoPath, emoji: foodsForMeal(queued).map(emojiFor).join(""),
-            }).eq("id", queued.id);
+            }).eq("id", queued.id).eq("family_id", scope.family_id).eq("baby_id", scope.baby_id);
             if (error) remainingUpdates.push(queued);
           } catch { remainingUpdates.push(queued); }
         }
-        if (remainingUpdates.length) writeLocal(pendingUpdatesKey, remainingUpdates);
-        else localStorage.removeItem(pendingUpdatesKey);
+        if (remainingUpdates.length) writeLocal(updateQueueKey, remainingUpdates);
+        else localStorage.removeItem(updateQueueKey);
       }
-      const { data } = await supabase.from("meals").select("*").order("eaten_at");
+      const { data } = await supabase.from("meals").select("*").eq("family_id", scope.family_id).eq("baby_id", scope.baby_id).order("eaten_at");
       if (data) {
-        const cachedMeals = new Map(readLocal(mealsKey, []).map(meal => [meal.id, meal]));
+        const cachedMeals = new Map(readLocal(scopedStorageKey(mealsKey, scopeBaby.id), []).map(meal => [meal.id, meal]));
         const hydrated = await Promise.all(data.map(async meal => {
           if (!meal.photo_path) return meal;
           const cached = cachedMeals.get(meal.id)?.photo_preview;
@@ -1304,13 +1562,13 @@ function App() {
           try { return { ...meal, photo_preview: await blobToDataUrl(photoBlob) }; }
           catch { return meal; }
         }));
-        const stillPending = readLocal(pendingKey, []);
-        const stillUpdates = new Map(readLocal(pendingUpdatesKey, []).map(meal => [meal.id, meal]));
+        const stillPending = readLocal(pendingQueueKey, []);
+        const stillUpdates = new Map(readLocal(updateQueueKey, []).map(meal => [meal.id, meal]));
         const merged = [
           ...hydrated.map(meal => stillUpdates.has(meal.id) ? { ...meal, ...stillUpdates.get(meal.id) } : meal),
           ...stillPending,
         ];
-        saveMeals(merged);
+        saveMeals(merged, scopeBaby.id);
         setSyncStatus("爸妈已同步");
       }
     } catch { /* 网络异常时保持本地数据 */ }
@@ -1318,14 +1576,21 @@ function App() {
 
   useEffect(() => {
     let active = true;
-    supabase.auth.getSession().then(({ data }) => {
-      if (active) setCurrentUser(data.session?.user || null);
+    supabase.auth.getSession().then(async ({ data }) => {
+      if (!active) return;
+      const user = data.session?.user || null;
+      setCurrentUser(user);
+      await loadFamilyContext(user);
+      if (active) setAuthReady(true);
     });
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       if (!active) return;
       setCurrentUser(session?.user || null);
-      if (event === "SIGNED_OUT") setSyncStatus("");
-      if (event === "SIGNED_IN" && session?.user) setTimeout(() => sync(), 0);
+      if (event === "SIGNED_OUT") { setSyncStatus(""); loadFamilyContext(null); }
+      if (event === "SIGNED_IN" && session?.user) setTimeout(async () => {
+        const context = await loadFamilyContext(session.user);
+        if (context?.baby) sync(context.family, context.baby);
+      }, 0);
     });
     return () => {
       active = false;
@@ -1334,7 +1599,6 @@ function App() {
   }, []);
 
   useEffect(() => {
-    sync();
     const on = () => { setOnline(true); sync(); setNotice("已恢复网络，记录已同步"); };
     const off = () => { setOnline(false); setNotice("已进入离线模式，记录会稍后同步"); };
     window.addEventListener("online", on);
@@ -1342,38 +1606,44 @@ function App() {
     return () => { window.removeEventListener("online", on); window.removeEventListener("offline", off); };
   }, []);
 
+  useEffect(() => {
+    if (activeFamily && activeBaby) sync(activeFamily, activeBaby);
+  }, [activeFamily?.id, activeBaby?.id]);
+
   /* --- 记一餐 --- */
   const removePlansByFood = async (foodNames, { quiet = false } = {}) => {
     const names = [...new Set(foodNames.filter(Boolean))];
     savePlan(plan.filter(p => !names.includes(p.food)));
-    const queueDelete = () => writeLocal(planDeletesKey, [...new Set([...readLocal(planDeletesKey, []), ...names])]);
+    const deleteQueueKey = cacheKey(planDeletesKey);
+    const queueDelete = () => writeLocal(deleteQueueKey, [...new Set([...readLocal(deleteQueueKey, []), ...names])]);
     if (!navigator.onLine) {
       queueDelete();
       if (!quiet) setNotice("已从计划移除，联网后会同步给家人");
       return;
     }
     const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
+    if (!user || !activeFamily?.id || !activeBaby?.id) {
       queueDelete();
       if (!quiet) setNotice("已从本机计划移除，登录后会同步");
       return;
     }
     let failed = false;
     for (const food of names) {
-      const { error } = await supabase.from("food_plans").delete().eq("user_id", user.id).eq("food", food);
+      const { error } = await supabase.from("food_plans").delete().eq("family_id", activeFamily.id).eq("baby_id", activeBaby.id).eq("food", food);
       if (error) failed = true;
     }
     if (failed) queueDelete();
     else {
-      const remaining = readLocal(planDeletesKey, []).filter(food => !names.includes(food));
-      if (remaining.length) writeLocal(planDeletesKey, remaining);
-      else localStorage.removeItem(planDeletesKey);
+      const remaining = readLocal(deleteQueueKey, []).filter(food => !names.includes(food));
+      if (remaining.length) writeLocal(deleteQueueKey, remaining);
+      else localStorage.removeItem(deleteQueueKey);
     }
     if (!quiet) setNotice(failed ? "已从计划移除，稍后自动同步" : "已从计划移除并同步给家人");
   };
   const removePlan = (item, options) => removePlansByFood([item.food], options);
 
   const addMeal = async record => {
+    if (!activeFamily?.id || !activeBaby?.id) { setNotice("请先选择宝宝"); return; }
     const local = {
       food: record.food, foods: record.foods, amount_grams: record.amount_grams, reaction: record.reaction, note: record.note,
       food_source: record.food_source, remarks: record.remarks, photo_preview: record.photo_preview || null,
@@ -1383,18 +1653,20 @@ function App() {
     setSheetOpen(false);
     const plannedFoods = plan.filter(item => record.foods.includes(item.food)).map(item => item.food);
     if (plannedFoods.length) await removePlansByFood(plannedFoods, { quiet: true });
-    const queue = () => writeLocal(pendingKey, [...readLocal(pendingKey, []), local]);
+    const queueKey = cacheKey(pendingKey);
+    const queue = () => writeLocal(queueKey, [...readLocal(queueKey, []), local]);
     if (!navigator.onLine) { queue(); setNotice("已离线保存，联网后自动同步"); return; }
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) { queue(); setNotice("已保存在本机，登录后可与家人同步"); return; }
-    try { local.photo_path = await uploadMealPhoto(user.id, local); }
+    const scope = recordScope(activeFamily, activeBaby, user.id);
+    try { local.photo_path = await uploadMealPhoto(scope.family_id, scope.baby_id, local); }
     catch { queue(); setNotice("记录已保存在手机，照片会稍后自动同步"); return; }
     const { error } = await supabase.from("meals").insert({
-      user_id: user.id, food: local.food, foods: local.foods, amount_grams: local.amount_grams,
+      ...scope, food: local.food, foods: local.foods, amount_grams: local.amount_grams,
       eaten_at: local.eaten_at, reaction: local.reaction, note: local.note,
       food_source: local.food_source, remarks: local.remarks, photo_path: local.photo_path, emoji: local.foods.map(emojiFor).join(""),
     });
-    if (error) { queue(); setNotice("已保存在本机，稍后自动重试"); } else { setNotice("这一餐已同步给家人"); sync(); }
+    if (error) { queue(); setNotice("已保存在本机，稍后自动重试"); } else { setNotice("这一餐已同步给家人"); sync(activeFamily, activeBaby); }
   };
 
   const updateMeal = async (record, original) => {
@@ -1417,15 +1689,17 @@ function App() {
     setPrefill(null);
 
     if (String(original.id).startsWith("local-")) {
-      const queued = readLocal(pendingKey, []);
-      writeLocal(pendingKey, queued.map(meal => meal.id === original.id ? updated : meal));
+      const queueKey = cacheKey(pendingKey);
+      const queued = readLocal(queueKey, []);
+      writeLocal(queueKey, queued.map(meal => meal.id === original.id ? updated : meal));
       setNotice("记录已更新，登录联网后会同步");
       return;
     }
 
     const queueUpdate = () => {
-      const queue = readLocal(pendingUpdatesKey, []).filter(meal => meal.id !== original.id);
-      writeLocal(pendingUpdatesKey, [...queue, { ...updated, photo_changed: photoChanged }]);
+      const queueKey = cacheKey(pendingUpdatesKey);
+      const queue = readLocal(queueKey, []).filter(meal => meal.id !== original.id);
+      writeLocal(queueKey, [...queue, { ...updated, photo_changed: photoChanged }]);
     };
     if (!navigator.onLine) { queueUpdate(); setNotice("修改已离线保存，联网后自动同步"); return; }
     const { data: { user } } = await supabase.auth.getUser();
@@ -1434,7 +1708,7 @@ function App() {
     try {
       let photoPath = original.photo_path || null;
       if (photoChanged) {
-        if (updated.photo_preview) photoPath = await uploadMealPhoto(user.id, { ...updated, photo_path: photoPath });
+        if (updated.photo_preview) photoPath = await uploadMealPhoto(activeFamily.id, activeBaby.id, { ...updated, photo_path: photoPath });
         else if (photoPath) {
           await supabase.storage.from("meal-photos").remove([photoPath]);
           photoPath = null;
@@ -1444,7 +1718,7 @@ function App() {
         food: updated.food, foods: updated.foods, amount_grams: updated.amount_grams, eaten_at: updated.eaten_at,
         reaction: updated.reaction, note: updated.note, food_source: updated.food_source,
         remarks: updated.remarks, photo_path: photoPath, emoji: updated.foods.map(emojiFor).join(""),
-      }).eq("id", original.id);
+      }).eq("id", original.id).eq("family_id", activeFamily.id).eq("baby_id", activeBaby.id);
       if (error) throw error;
       if (photoPath !== updated.photo_path) saveMeals(meals.map(meal => meal.id === original.id ? { ...updated, photo_path: photoPath } : meal));
       setNotice("这条记录已更新并同步给家人");
@@ -1456,11 +1730,13 @@ function App() {
 
   const deleteMeal = async meal => {
     saveMeals(meals.filter(m => m.id !== meal.id));
-    writeLocal(pendingKey, readLocal(pendingKey, []).filter(m => m.id !== meal.id));
-    writeLocal(pendingUpdatesKey, readLocal(pendingUpdatesKey, []).filter(m => m.id !== meal.id));
+    const pendingQueueKey = cacheKey(pendingKey);
+    const updateQueueKey = cacheKey(pendingUpdatesKey);
+    writeLocal(pendingQueueKey, readLocal(pendingQueueKey, []).filter(m => m.id !== meal.id));
+    writeLocal(updateQueueKey, readLocal(updateQueueKey, []).filter(m => m.id !== meal.id));
     setDetailMeal(null);
     if (!String(meal.id).startsWith("local-") && navigator.onLine) {
-      await supabase.from("meals").delete().eq("id", meal.id);
+      await supabase.from("meals").delete().eq("id", meal.id).eq("family_id", activeFamily.id).eq("baby_id", activeBaby.id);
       if (meal.photo_path) await supabase.storage.from("meal-photos").remove([meal.photo_path]);
     } else if (meal.photo_path && navigator.onLine) {
       await supabase.storage.from("meal-photos").remove([meal.photo_path]);
@@ -1470,6 +1746,7 @@ function App() {
 
   /* --- 计划 --- */
   const addToPlan = async food => {
+    if (!activeFamily?.id || !activeBaby?.id) { setNotice("请先选择宝宝"); return; }
     if (plan.some(p => p.food === food.name)) { setNotice(`「${food.name}」已经在计划里了`); return; }
     const localItem = { id: `plan-${Date.now()}`, food: food.name, amount: food.amount };
     savePlan([...plan, localItem]);
@@ -1477,15 +1754,16 @@ function App() {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) { setNotice(`已把「${food.name}」加入本机计划，登录后同步`); return; }
     const { error } = await supabase.from("food_plans").upsert(
-      { user_id: user.id, food: food.name, amount: food.amount || null },
-      { onConflict: "user_id,food" },
+      { ...recordScope(activeFamily, activeBaby, user.id), food: food.name, amount: food.amount || null },
+      { onConflict: "baby_id,food" },
     );
     if (error) setNotice(`已把「${food.name}」加入计划，稍后自动同步`);
-    else { setNotice(`已把「${food.name}」加入计划并同步给家人`); sync(); }
+    else { setNotice(`已把「${food.name}」加入计划并同步给家人`); sync(activeFamily, activeBaby); }
   };
 
   const syncTap = async () => {
-    setAuthOpen(true);
+    if (currentUser && activeFamily) setFamilySettingsOpen(true);
+    else setAuthOpen(true);
   };
 
   const syncFromAccount = async () => {
@@ -1493,6 +1771,112 @@ function App() {
     setNotice("正在同步…");
     await sync();
     setNotice("已和家人同步");
+  };
+
+  const createFamily = async name => {
+    setFamilyBusy(true); setFamilyGateMessage("");
+    const { error } = await supabase.rpc("create_family", { p_name: name.trim() });
+    if (error) setFamilyGateMessage(friendlyFamilyError(error));
+    else await loadFamilyContext(currentUser);
+    setFamilyBusy(false);
+  };
+
+  const acceptInvite = async () => {
+    if (!inviteToken) return;
+    setFamilyBusy(true); setFamilyGateMessage("");
+    const { error } = await supabase.rpc("accept_family_invitation", { p_token: inviteToken });
+    if (error) setFamilyGateMessage(friendlyFamilyError(error));
+    else {
+      history.replaceState({}, "", location.pathname);
+      await loadFamilyContext(currentUser);
+      setNotice("已加入家庭");
+    }
+    setFamilyBusy(false);
+  };
+
+  const switchBaby = async baby => {
+    setDetailMeal(null); setSheetOpen(false); setPrefill(null);
+    await activateBaby(baby, activeFamily, currentUser);
+    setBabyManagerOpen(false);
+  };
+
+  const uploadManagedAvatar = async (baby, file) => {
+    if (!file) return baby;
+    const { blob } = await prepareAvatar(file);
+    const path = `${activeFamily.id}/${baby.id}/avatar.webp`;
+    const { error: uploadError } = await supabase.storage.from("baby-avatars").upload(path, blob, { contentType: "image/webp", upsert: true });
+    if (uploadError) throw uploadError;
+    const { data, error } = await supabase.from("babies").update({ avatar_path: path, updated_at: new Date().toISOString() }).eq("id", baby.id).eq("family_id", activeFamily.id).select().single();
+    if (error) throw error;
+    return data;
+  };
+
+  const saveManagedBaby = async values => {
+    if (!activeFamily?.id || !currentUser?.id) return;
+    setFamilyBusy(true);
+    const payload = { nickname: values.nickname, birth_date: values.birth_date, gender: values.gender, notes: values.notes, updated_at: new Date().toISOString() };
+    if (values.id) {
+      const { data, error } = await supabase.from("babies").update(payload).eq("id", values.id).eq("family_id", activeFamily.id).select().single();
+      if (error) setNotice(friendlyFamilyError(error));
+      else {
+        const saved = await uploadManagedAvatar(data, values.avatarFile);
+        setBabies(current => current.map(item => item.id === saved.id ? saved : item));
+        if (activeBaby?.id === saved.id) await activateBaby(saved, activeFamily, currentUser);
+        setNotice("宝宝资料已更新");
+      }
+    } else {
+      const { data, error } = await supabase.from("babies").insert({ ...payload, family_id: activeFamily.id, created_by: currentUser.id, display_order: babies.length }).select().single();
+      if (error) setNotice(friendlyFamilyError(error));
+      else {
+        const saved = await uploadManagedAvatar(data, values.avatarFile);
+        if (values.copyPlan && activeBaby?.id) {
+          const { data: sourcePlans } = await supabase.from("food_plans").select("food,amount").eq("family_id", activeFamily.id).eq("baby_id", activeBaby.id);
+          if (sourcePlans?.length) await supabase.from("food_plans").upsert(sourcePlans.map(item => ({ family_id: activeFamily.id, baby_id: saved.id, user_id: currentUser.id, ...item })), { onConflict: "baby_id,food" });
+        }
+        setBabies(current => [...current, saved]);
+        await activateBaby(saved, activeFamily, currentUser);
+        setNotice(values.copyPlan ? "宝宝已添加，基础计划已复制" : "宝宝已添加");
+      }
+    }
+    setFamilyBusy(false);
+  };
+
+  const deleteManagedBaby = async baby => {
+    setFamilyBusy(true);
+    const { data, error } = await supabase.functions.invoke("family-account-actions", { body: { action: "delete_baby", family_id: activeFamily.id, baby_id: baby.id } });
+    if (error || data?.error) setNotice(friendlyFamilyError(data?.error || error));
+    else {
+      const remaining = babies.filter(item => item.id !== baby.id);
+      setBabies(remaining);
+      if (activeBaby?.id === baby.id) {
+        if (remaining[0]) await activateBaby(remaining[0], activeFamily, currentUser);
+        else { setActiveBaby(null); setMeals([]); setPlan([]); setAvatar("/assets/baby-avatar.png"); }
+      }
+      setNotice(`已删除 ${baby.nickname}，其他宝宝不受影响`);
+    }
+    setFamilyBusy(false);
+  };
+
+  const moveManagedBaby = async (baby, direction) => {
+    const index = babies.findIndex(item => item.id === baby.id);
+    const other = babies[index + direction];
+    if (!other) return;
+    const reordered = [...babies]; [reordered[index], reordered[index + direction]] = [reordered[index + direction], reordered[index]];
+    setBabies(reordered);
+    await Promise.all(reordered.map((item, display_order) => supabase.from("babies").update({ display_order }).eq("id", item.id).eq("family_id", activeFamily.id)));
+  };
+
+  const changeLocale = async nextLocale => {
+    setLocale(nextLocale); localStorage.setItem("baby-journal-locale", nextLocale);
+    if (currentUser) await supabase.from("user_preferences").upsert({ user_id: currentUser.id, active_family_id: activeFamily?.id || null, active_baby_id: activeBaby?.id || null, locale: nextLocale, updated_at: new Date().toISOString() });
+  };
+
+  const switchFamily = async familyId => {
+    if (!currentUser) return;
+    localStorage.setItem(`active-family-${currentUser.id}`, familyId);
+    await supabase.from("user_preferences").upsert({ user_id: currentUser.id, active_family_id: familyId, active_baby_id: null, locale, updated_at: new Date().toISOString() });
+    setFamilySettingsOpen(false);
+    await loadFamilyContext(currentUser);
   };
 
   const openRecord = item => {
@@ -1510,11 +1894,14 @@ function App() {
       if (!navigator.onLine) { setNotice("头像已保存在手机，联网登录后可同步"); return; }
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) { setNotice("头像已保存在手机，登录后可同步"); return; }
-      const path = `${user.id}/elnaz-avatar.webp`;
+      if (!activeFamily?.id || !activeBaby?.id) throw new Error("missing_baby_scope");
+      const path = `${activeFamily.id}/${activeBaby.id}/avatar.webp`;
       const { error: uploadError } = await supabase.storage.from("baby-avatars").upload(path, blob, { contentType: "image/webp", upsert: true });
       if (uploadError) throw uploadError;
-      const { error: profileError } = await supabase.from("baby_profiles").upsert({ user_id: user.id, baby_name: babyName, birth_date: birth, avatar_path: path, updated_at: new Date().toISOString() });
+      const { data: savedBaby, error: profileError } = await supabase.from("babies").update({ avatar_path: path, updated_at: new Date().toISOString() })
+        .eq("id", activeBaby.id).eq("family_id", activeFamily.id).select().single();
       if (profileError) throw profileError;
+      if (savedBaby) { setActiveBaby(savedBaby); setBabies(current => current.map(item => item.id === savedBaby.id ? savedBaby : item)); }
       setNotice(`${babyName} 的头像已同步给家人`);
     } catch { setNotice("头像保存失败，请换一张图片重试"); }
   };
@@ -1538,6 +1925,21 @@ function App() {
     ],
   };
 
+  if (!authReady || familyLoading) return <div className="family-gate"><div className="family-gate-card"><RefreshCw className="spin" /><p>正在安全加载家庭资料…</p></div></div>;
+
+  if (!currentUser || !activeFamily) return <>
+    <FamilyOnboarding user={currentUser} inviteToken={inviteToken} onCreate={createFamily} onAcceptInvite={acceptInvite} onOpenAuth={() => setAuthOpen(true)} busy={familyBusy} message={familyGateMessage} locale={locale} />
+    <AuthDialog open={authOpen} onOpenChange={setAuthOpen} user={currentUser} online={online} pendingCount={0} babyName={babyName} birth={birth}
+      onProfilePrepared={() => {}} onSync={() => {}} onSignedIn={async user => { setCurrentUser(user); setAuthOpen(false); await loadFamilyContext(user); }}
+      onSignedOut={() => { setCurrentUser(null); setAuthOpen(false); }} />
+  </>;
+
+  if (!activeBaby) return <>
+    <div className="family-gate"><div className="family-gate-card"><div className="account-mark"><Baby size={28} /></div><h1>{activeFamily.name}</h1><h2>家庭里还没有宝宝</h2><p>添加第一个宝宝后，就可以开始记录辅食。昵称必填，出生日期、性别、头像和备注都可以稍后补充。</p><button className="save-button" onClick={() => setBabyManagerOpen(true)}><Plus size={18} />添加宝宝</button><button className="secondary-button" onClick={() => setFamilySettingsOpen(true)}><Settings size={17} />家庭与账户</button></div></div>
+    <BabyManagerDialog open={babyManagerOpen} onOpenChange={setBabyManagerOpen} family={activeFamily} role={activeMembership?.role} babies={babies} activeBaby={activeBaby} locale={locale} onSwitch={switchBaby} onSave={saveManagedBaby} onDelete={deleteManagedBaby} onMove={moveManagedBaby} />
+    <FamilySettingsDialog open={familySettingsOpen} onOpenChange={setFamilySettingsOpen} user={currentUser} family={activeFamily} membership={activeMembership} memberships={memberships} locale={locale} onLocale={changeLocale} onSwitchFamily={switchFamily} onReload={() => loadFamilyContext(currentUser)} onSignedOut={() => supabase.auth.signOut({ scope: "local" })} />
+  </>;
+
   return (
     <div className="app-shell">
       <div className="mobile-prototype">
@@ -1555,7 +1957,7 @@ function App() {
               online={online} status={syncStatus} signedIn={!!currentUser} avatar={avatar} babyName={babyName} onAvatar={changeAvatar}
               onCalendar={() => setCalendarOpen(true)} birth={birth} onSyncTap={syncTap}
               onTopTap={scrollToTop}
-              onProfileEdit={() => setProfileOpen(true)}
+              onProfileEdit={() => setBabyManagerOpen(true)}
             />
             <button className="primary-action" onClick={() => { setPrefill(null); setSheetOpen(true); }}><Plus size={25} />记录一餐</button>
             <HealthStrip todayMeals={todayMeals} />
@@ -1631,6 +2033,7 @@ function App() {
       </aside>
       <AddMealDialog
         open={sheetOpen}
+        babyName={babyName}
         prefill={prefill}
         onOpenChange={value => { setSheetOpen(value); if (!value) setPrefill(null); }}
         onSave={(record, original) => original ? updateMeal(record, original) : addMeal(record)}
@@ -1640,12 +2043,12 @@ function App() {
         onOpenChange={setAuthOpen}
         user={currentUser}
         online={online}
-        pendingCount={readLocal(pendingKey, []).length}
+        pendingCount={readLocal(cacheKey(pendingKey), []).length}
         babyName={babyName}
         birth={birth}
         onProfilePrepared={storeBabyProfile}
         onSync={syncFromAccount}
-        onSignedIn={user => { setCurrentUser(user); setAuthOpen(false); sync(); setNotice("登录成功，正在同步记录"); }}
+        onSignedIn={async user => { setCurrentUser(user); setAuthOpen(false); const context = await loadFamilyContext(user); if (context?.baby) sync(context.family, context.baby); setNotice("登录成功，正在同步记录"); }}
         onSignedOut={() => { setCurrentUser(null); setAuthOpen(false); setSyncStatus(""); setNotice("已退出这台设备，手机里的记录仍然保留"); }}
       />
       <CalendarDialog open={calendarOpen} onOpenChange={setCalendarOpen} meals={meals} onAddFor={d => { setPrefill({ date: d }); setSheetOpen(true); }} />
@@ -1657,28 +2060,28 @@ function App() {
         babyName={babyName}
       />
       <BabyProfileDialog open={profileOpen} onOpenChange={setProfileOpen} babyName={babyName} birth={birth} onSave={saveBabyProfile} />
+      <BabyManagerDialog open={babyManagerOpen} onOpenChange={setBabyManagerOpen} family={activeFamily} role={activeMembership?.role} babies={babies} activeBaby={activeBaby} locale={locale} onSwitch={switchBaby} onSave={saveManagedBaby} onDelete={deleteManagedBaby} onMove={moveManagedBaby} />
+      <FamilySettingsDialog open={familySettingsOpen} onOpenChange={setFamilySettingsOpen} user={currentUser} family={activeFamily} membership={activeMembership} memberships={memberships} locale={locale} onLocale={changeLocale} onSwitchFamily={switchFamily} onReload={() => loadFamilyContext(currentUser)} onSignedOut={() => supabase.auth.signOut({ scope: "local" })} />
       <FoodEditDialog editing={editingFood} onClose={() => setEditingFood(null)} onSave={saveFood} onDelete={deleteFood} />
       <InfoDialog info={info} onClose={() => setInfo(null)} />
     </div>
   );
 }
 
-function AuthDialog({ open, onOpenChange, onSignedIn, onSignedOut, onSync, user, online, pendingCount, babyName, birth, onProfilePrepared }) {
+function AuthDialog({ open, onOpenChange, onSignedIn, onSignedOut, onSync, user, online, pendingCount, babyName }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [message, setMessage] = useState("");
   const [signingOut, setSigningOut] = useState(false);
   const [signupMode, setSignupMode] = useState(false);
-  const [signupName, setSignupName] = useState(babyName);
-  const [signupBirth, setSignupBirth] = useState(birth);
+  const [signupName, setSignupName] = useState("");
   useEffect(() => {
     if (open) {
       setMessage("");
       setSignupMode(false);
-      setSignupName(babyName);
-      setSignupBirth(birth);
+      setSignupName("");
     }
-  }, [open, user, babyName, birth]);
+  }, [open, user]);
   const logout = async () => {
     setSigningOut(true);
     setMessage("");
@@ -1702,14 +2105,12 @@ function AuthDialog({ open, onOpenChange, onSignedIn, onSignedOut, onSync, user,
     e.preventDefault();
     if (!/.+@.+\..+/.test(email)) { setMessage("请先填写正确的邮箱地址"); return; }
     if (password.length < 6) { setMessage("密码至少要 6 位"); return; }
-    if (!signupName.trim()) { setMessage("请填写宝宝姓名"); return; }
-    if (!signupBirth) { setMessage("请选择宝宝出生日期"); return; }
-    setMessage("正在创建家庭账号…");
-    const profile = { name: signupName.trim(), birth: signupBirth };
+    if (!signupName.trim()) { setMessage("请填写你的称呼"); return; }
+    setMessage("正在创建个人账号…");
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
-      options: { data: { baby_name: profile.name, birth_date: profile.birth } },
+      options: { data: { display_name: signupName.trim() } },
     });
     if (error) {
       const msg = error.message || "";
@@ -1722,7 +2123,6 @@ function AuthDialog({ open, onOpenChange, onSignedIn, onSignedOut, onSync, user,
     }
     // 有些配置下重复注册不报错，但返回的用户没有身份信息
     if (data?.user && data.user.identities?.length === 0) { setMessage("这个邮箱已经注册过了，直接登录即可"); return; }
-    onProfilePrepared(profile);
     setMessage(data?.session ? "注册成功，已自动登录" : "注册成功！请打开邮箱里的确认链接，然后回来登录。");
     if (data?.session) onSignedIn(data.session.user);
   };
@@ -1735,7 +2135,7 @@ function AuthDialog({ open, onOpenChange, onSignedIn, onSignedOut, onSync, user,
           <div className="account-mark"><Baby size={25} /></div>
           <div className="account-status"><i />家庭账号已登录</div>
           <Dialog.Title>账号与同步</Dialog.Title>
-          <Dialog.Description>你和家人使用同一账号，就能看到 {babyName} 的相同记录。</Dialog.Description>
+          <Dialog.Description>每位家长使用自己的账号，通过家庭邀请共同照顾 {babyName}。</Dialog.Description>
           <div className="account-details">
             <div><Mail size={17} /><span><small>当前账号</small><b>{user.email || "家庭账号"}</b></span></div>
             <div><RefreshCw size={17} /><span><small>同步状态</small><b>{online ? (pendingCount ? `${pendingCount} 条记录等待同步` : "已联网，会自动同步") : "当前离线，联网后自动同步"}</b></span></div>
@@ -1755,17 +2155,16 @@ function AuthDialog({ open, onOpenChange, onSignedIn, onSignedOut, onSync, user,
         <Dialog.Content className="auth-card">
           <Dialog.Close className="icon-button auth-close" aria-label="关闭"><X size={18} /></Dialog.Close>
           <img src="/assets/baby-avatar.png" alt="" />
-          <Dialog.Title>{signupMode ? "创建家庭账号" : "欢迎来到宝贝食光"}</Dialog.Title>
-          <Dialog.Description>{signupMode ? "先填写宝宝资料，再创建爸妈共同使用的账号。" : `登录后，你和家人可以随时同步 ${babyName} 的辅食记录。`}</Dialog.Description>
+          <Dialog.Title>{signupMode ? "创建个人账号" : "欢迎来到宝贝食光"}</Dialog.Title>
+          <Dialog.Description>{signupMode ? "每位家长创建自己的账号，之后再创建或加入家庭。" : `登录后，可通过家庭安全共享宝宝的辅食记录。`}</Dialog.Description>
           <form onSubmit={signupMode ? signup : login}>
             {signupMode && <div className="signup-profile-fields">
-              <label>宝宝姓名<input value={signupName} onChange={e => setSignupName(e.target.value)} maxLength={40} autoComplete="off" required /></label>
-              <label>出生日期<input type="date" value={signupBirth} max={todayKey()} onChange={e => setSignupBirth(e.target.value)} required /></label>
+              <label>你的称呼<input value={signupName} onChange={e => setSignupName(e.target.value)} maxLength={60} autoComplete="name" placeholder="例如：Elnaz 妈妈" required /></label>
             </div>}
             <label>邮箱<input type="email" value={email} onChange={e => setEmail(e.target.value)} required /></label>
-            <label>密码<input type="password" minLength="6" value={password} onChange={e => setPassword(e.target.value)} required /></label>
-            <button className="save-button" type="submit">{signupMode ? "创建家庭账号" : "登录"}</button>
-            <button className="signup-link" type="button" onClick={() => { setSignupMode(value => !value); setMessage(""); }}>{signupMode ? "已有账号？返回登录" : "第一次使用？创建家庭账号"}</button>
+            <label>密码<input type="password" minLength="6" autoComplete={signupMode ? "new-password" : "current-password"} value={password} onChange={e => setPassword(e.target.value)} required /></label>
+            <button className="save-button" type="submit">{signupMode ? "创建个人账号" : "登录"}</button>
+            <button className="signup-link" type="button" onClick={() => { setSignupMode(value => !value); setMessage(""); }}>{signupMode ? "已有账号？返回登录" : "第一次使用？创建个人账号"}</button>
             <p className="auth-message">{message}</p>
           </form>
         </Dialog.Content>

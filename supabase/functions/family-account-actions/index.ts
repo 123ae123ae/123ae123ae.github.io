@@ -1,0 +1,120 @@
+import "jsr:@supabase/functions-js/edge-runtime.d.ts";
+import { createClient } from "npm:@supabase/supabase-js@2.52.1";
+
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
+};
+
+const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), {
+  status,
+  headers: { ...corsHeaders, "Content-Type": "application/json" },
+});
+
+type AdminClient = ReturnType<typeof createClient>;
+
+async function removePaths(admin: AdminClient, bucket: string, paths: Array<string | null | undefined>) {
+  const unique = [...new Set(paths.filter((path): path is string => !!path))];
+  for (let index = 0; index < unique.length; index += 100) {
+    const { error } = await admin.storage.from(bucket).remove(unique.slice(index, index + 100));
+    if (error) throw new Error(`storage_cleanup_failed:${bucket}`);
+  }
+}
+
+async function collectAndRemoveBabyFiles(admin: AdminClient, babyIds: string[]) {
+  if (!babyIds.length) return;
+  const [{ data: babies, error: babyError }, { data: meals, error: mealError }] = await Promise.all([
+    admin.from("babies").select("avatar_path").in("id", babyIds),
+    admin.from("meals").select("photo_path").in("baby_id", babyIds).not("photo_path", "is", null),
+  ]);
+  if (babyError || mealError) throw new Error("file_manifest_failed");
+  await Promise.all([
+    removePaths(admin, "baby-avatars", (babies || []).map((row) => row.avatar_path)),
+    removePaths(admin, "meal-photos", (meals || []).map((row) => row.photo_path)),
+  ]);
+}
+
+Deno.serve(async (request) => {
+  if (request.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
+  if (request.method !== "POST") return json({ error: "method_not_allowed" }, 405);
+
+  try {
+    const authHeader = request.headers.get("Authorization") || "";
+    const token = authHeader.replace(/^Bearer\s+/i, "");
+    if (!token) return json({ error: "authentication_required" }, 401);
+
+    const url = Deno.env.get("SUPABASE_URL")!;
+    const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const publishable = Deno.env.get("SUPABASE_ANON_KEY")!;
+    const admin = createClient(url, serviceKey, { auth: { persistSession: false, autoRefreshToken: false } });
+    const authClient = createClient(url, publishable, {
+      auth: { persistSession: false, autoRefreshToken: false },
+      global: { headers: { Authorization: authHeader } },
+    });
+    const { data: { user }, error: userError } = await authClient.auth.getUser(token);
+    if (userError || !user) return json({ error: "authentication_required" }, 401);
+
+    const body = await request.json().catch(() => ({}));
+    const action = String(body.action || "");
+
+    if (action === "delete_baby") {
+      const babyId = String(body.baby_id || "");
+      const { data: baby } = await admin.from("babies").select("id,family_id,nickname").eq("id", babyId).maybeSingle();
+      if (!baby) return json({ error: "baby_not_found" }, 404);
+      const { data: membership } = await admin.from("family_members").select("role").eq("family_id", baby.family_id).eq("user_id", user.id).maybeSingle();
+      if (membership?.role !== "owner") return json({ error: "owner_required" }, 403);
+      await collectAndRemoveBabyFiles(admin, [baby.id]);
+      const { error } = await admin.from("babies").delete().eq("id", baby.id).eq("family_id", baby.family_id);
+      if (error) throw new Error("baby_delete_failed");
+      return json({ ok: true, deleted_baby: baby.nickname });
+    }
+
+    if (action === "delete_family") {
+      const familyId = String(body.family_id || "");
+      const { data: family } = await admin.from("families").select("id,name,owner_id").eq("id", familyId).maybeSingle();
+      if (!family) return json({ error: "family_not_found" }, 404);
+      if (family.owner_id !== user.id) return json({ error: "owner_required" }, 403);
+      const { data: babies } = await admin.from("babies").select("id").eq("family_id", familyId);
+      await collectAndRemoveBabyFiles(admin, (babies || []).map((baby) => baby.id));
+      const { error } = await admin.from("families").delete().eq("id", familyId).eq("owner_id", user.id);
+      if (error) throw new Error("family_delete_failed");
+      return json({ ok: true, deleted_family: family.name });
+    }
+
+    if (action === "delete_account") {
+      const { data: memberships, error: membershipError } = await admin
+        .from("family_members")
+        .select("family_id,role,families(id,name,owner_id)")
+        .eq("user_id", user.id);
+      if (membershipError) throw new Error("membership_lookup_failed");
+
+      const owned = (memberships || []).filter((membership) => membership.role === "owner");
+      for (const membership of owned) {
+        const { count } = await admin.from("family_members").select("id", { count: "exact", head: true }).eq("family_id", membership.family_id);
+        if ((count || 0) > 1) return json({ error: "transfer_required", family_id: membership.family_id }, 409);
+      }
+      if (owned.length && body.delete_solo_families !== true) {
+        return json({ error: "solo_family_confirmation_required", family_ids: owned.map((item) => item.family_id) }, 409);
+      }
+
+      for (const membership of owned) {
+        const { data: babies } = await admin.from("babies").select("id").eq("family_id", membership.family_id);
+        await collectAndRemoveBabyFiles(admin, (babies || []).map((baby) => baby.id));
+        const { error } = await admin.from("families").delete().eq("id", membership.family_id).eq("owner_id", user.id);
+        if (error) throw new Error("owned_family_delete_failed");
+      }
+
+      await admin.from("family_members").delete().eq("user_id", user.id);
+      await admin.from("profiles").delete().eq("id", user.id);
+      const { error: deleteUserError } = await admin.auth.admin.deleteUser(user.id);
+      if (deleteUserError) throw new Error("auth_user_delete_failed");
+      return json({ ok: true });
+    }
+
+    return json({ error: "unknown_action" }, 400);
+  } catch (error) {
+    console.error(error);
+    return json({ error: "server_operation_failed" }, 500);
+  }
+});

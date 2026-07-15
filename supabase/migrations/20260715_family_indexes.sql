@@ -1,0 +1,9 @@
+create index if not exists babies_created_by_idx on public.babies(created_by);
+create index if not exists families_owner_idx on public.families(owner_id);
+create index if not exists family_invitations_invited_by_idx on public.family_invitations(invited_by);
+create index if not exists food_plans_family_idx on public.food_plans(family_id);
+create index if not exists baby_reminders_family_idx on public.baby_reminders(family_id);
+create index if not exists baby_reminders_created_by_idx on public.baby_reminders(created_by);
+create index if not exists baby_foods_updated_by_idx on public.baby_foods(updated_by);
+create index if not exists user_preferences_active_family_idx on public.user_preferences(active_family_id);
+create index if not exists user_preferences_active_baby_idx on public.user_preferences(active_baby_id);
