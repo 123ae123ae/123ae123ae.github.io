@@ -157,7 +157,7 @@ function FoodIllustrations({ meal, foods, size = 56, className = "" }) {
   const items = (foods?.length ? foods : foodsForMeal(meal)).slice(0, 4);
   if (items.length <= 1) return <FoodPhoto food={items[0] || meal?.food || "餐食"} size={size} />;
   return (
-    <span className={`food-illustrations ${className}`} aria-label={items.join("、")}>
+    <span className={`food-illustrations food-count-${items.length} ${className}`} aria-label={items.join("、")}>
       {items.map(food => <FoodPhoto key={food} food={food} size={size} />)}
       {(foods?.length || foodsForMeal(meal).length) > 4 && <i>+{(foods?.length || foodsForMeal(meal).length) - 4}</i>}
     </span>
