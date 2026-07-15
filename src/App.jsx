@@ -1080,13 +1080,16 @@ function GrowthView({ meals, onOpenMeal, onAddFor, babyName }) {
 
 const friendlyFamilyError = error => {
   const message = String(error?.message || error || "");
+  const code = String(error?.code || "");
   if (message.includes("already_family_member")) return "这个邮箱已经是家庭成员了";
   if (message.includes("invitation_exists")) return "这个邮箱已经有一份待接受的邀请";
   if (message.includes("invitation_expired")) return "邀请已经过期，请让家人重新生成";
   if (message.includes("invitation_email_mismatch")) return "请使用收到邀请的邮箱登录";
   if (message.includes("owner_must_transfer")) return "所有者需要先转让家庭，或删除家庭";
   if (message.includes("permission") || message.includes("owner_required")) return "你没有执行这个操作的权限";
-  return "操作没有完成，请检查网络后重试";
+  if (code === "42804") return "家庭成员资料格式不兼容，请关闭页面后重新打开";
+  if (code.startsWith("PGRST")) return `家庭服务正在更新，请稍后重试（${code}）`;
+  return code ? `操作没有完成（错误代码 ${code}），请稍后重试` : "操作没有完成，请检查网络后重试";
 };
 
 function FamilyOnboarding({ user, inviteToken, onCreate, onAcceptInvite, onOpenAuth, busy, message, locale }) {

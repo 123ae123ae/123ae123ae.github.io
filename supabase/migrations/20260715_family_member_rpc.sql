@@ -6,7 +6,7 @@ language plpgsql stable security definer set search_path = '' as $$
 begin
   if not private.is_family_member(p_family_id) then raise exception 'permission_denied'; end if;
   return query
-  select fm.user_id, p.display_name, p.avatar_url, u.email, fm.role, fm.joined_at
+  select fm.user_id, p.display_name::text, p.avatar_url::text, u.email::text, fm.role::text, fm.joined_at
   from public.family_members fm
   join auth.users u on u.id=fm.user_id
   left join public.profiles p on p.id=fm.user_id
