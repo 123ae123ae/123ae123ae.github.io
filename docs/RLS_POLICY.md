@@ -137,7 +137,7 @@
 - 不在 `public` schema，不通过 Data API 暴露。
 - RLS 已开启作为纵深防御。
 - `anon/authenticated/PUBLIC` 没有表或 sequence 权限。
-- Auth 注册触发器在服务端记录政策版本、隐私同意、健康数据明确同意和服务器时间。
+- Auth 注册触发器在服务端记录政策版本、隐私政策阅读确认和服务器时间。旧版健康数据同意字段仅为数据库兼容保留，新注册不再收集，也不参与任何权限判断。
 - 账户删除时通过 `auth.users` 外键 `ON DELETE CASCADE` 删除。
 
 ## 7. 迁移快照

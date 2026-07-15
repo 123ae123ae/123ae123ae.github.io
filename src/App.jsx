@@ -2268,7 +2268,6 @@ function AuthDialog({ open, onOpenChange, onSignedIn, onSignedOut, onSync, user,
   const [signupName, setSignupName] = useState("");
   const [signupRelationship, setSignupRelationship] = useState("");
   const [privacyAccepted, setPrivacyAccepted] = useState(false);
-  const [healthConsent, setHealthConsent] = useState(false);
   useEffect(() => {
     if (open) {
       setMessage("");
@@ -2276,7 +2275,6 @@ function AuthDialog({ open, onOpenChange, onSignedIn, onSignedOut, onSync, user,
       setSignupName("");
       setSignupRelationship("");
       setPrivacyAccepted(false);
-      setHealthConsent(false);
     }
   }, [open, user]);
   const logout = async () => {
@@ -2304,15 +2302,14 @@ function AuthDialog({ open, onOpenChange, onSignedIn, onSignedOut, onSync, user,
     if (password.length < 6) { setMessage("密码至少要 6 位"); return; }
     if (!signupName.trim()) { setMessage("请填写你的称呼"); return; }
     if (!signupRelationship.trim()) { setMessage("请填写你在家庭中的身份"); return; }
-    if (!privacyAccepted) { setMessage("请先阅读并同意隐私政策"); return; }
-    if (!healthConsent) { setMessage("请确认你是父母或法定监护人，并明确同意处理宝宝的身体反应与过敏信息"); return; }
+    if (!privacyAccepted) { setMessage("请先阅读隐私政策"); return; }
     setMessage("正在创建个人账号…");
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
       options: {
         emailRedirectTo: `${location.origin}${location.pathname}${location.search}`,
-        data: { display_name: signupName.trim(), relationship: signupRelationship.trim(), privacy_accepted: true, privacy_policy_version: PRIVACY_VERSION, health_data_consent: true },
+        data: { display_name: signupName.trim(), relationship: signupRelationship.trim(), privacy_accepted: true, privacy_policy_version: PRIVACY_VERSION },
       },
     });
     if (error) {
@@ -2368,8 +2365,7 @@ function AuthDialog({ open, onOpenChange, onSignedIn, onSignedOut, onSync, user,
             <label>邮箱<input type="email" value={email} onChange={e => setEmail(e.target.value)} required /></label>
             <label>密码<input type="password" minLength="6" autoComplete={signupMode ? "new-password" : "current-password"} value={password} onChange={e => setPassword(e.target.value)} required /></label>
             {signupMode && <div className="consent-block">
-              <label className="consent-row"><input type="checkbox" checked={privacyAccepted} onChange={e => setPrivacyAccepted(e.target.checked)} required /><span>我已阅读并同意<button type="button" onClick={onOpenPrivacy}>《隐私政策》</button></span></label>
-              <label className="consent-row"><input type="checkbox" checked={healthConsent} onChange={e => setHealthConsent(e.target.checked)} required /><span>我是宝宝的父母或法定监护人，并明确同意处理身体反应、过敏等健康相关信息。</span></label>
+              <label className="consent-row"><input type="checkbox" checked={privacyAccepted} onChange={e => setPrivacyAccepted(e.target.checked)} required /><span>我已阅读<button type="button" onClick={onOpenPrivacy}>《隐私政策》</button></span></label>
             </div>}
             <button className="save-button" type="submit">{signupMode ? "创建个人账号" : "登录"}</button>
             <button className="signup-link" type="button" onClick={() => { setSignupMode(value => !value); setMessage(""); }}>{signupMode ? "已有账号？返回登录" : "第一次使用？创建个人账号"}</button>
