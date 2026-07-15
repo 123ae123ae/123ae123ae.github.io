@@ -844,10 +844,21 @@ function FoodEditDialog({ editing, onClose, onSave, onDelete }) {
 function LibraryView({ library, months, tried, onRecord, onPlan, onEdit, onAdd, hiddenCount, onRestoreHidden, babyName }) {
   const [query, setQuery] = useState("");
   const [cat, setCat] = useState("全部");
+  const [ageFilter, setAgeFilter] = useState("fit");
+  const ageFilters = [
+    { value: "fit", label: `适合 ${babyName}` },
+    { value: "4–6个月", label: "4–6月" },
+    { value: "6–8个月", label: "6–8月" },
+    { value: "8–12个月", label: "8–12月" },
+    { value: "12个月+", label: "12月+" },
+    { value: "all", label: "全部月龄" },
+  ];
   const stages = useMemo(() => {
     const q = query.trim().toLowerCase();
     const filtered = library.filter(f =>
       (cat === "全部" || (f.cat || "其他") === cat)
+      && (ageFilter === "all"
+        || (ageFilter === "fit" ? f.months <= months || Boolean(f.tryMonths && f.tryMonths <= months) : f.stage === ageFilter))
       && (!q || f.name.toLowerCase().includes(q) || (f.fr || "").toLowerCase().includes(q)));
     const groups = [];
     filtered.forEach(f => {
@@ -856,7 +867,7 @@ function LibraryView({ library, months, tried, onRecord, onPlan, onEdit, onAdd, 
       g.foods.push(f);
     });
     return groups;
-  }, [library, query, cat]);
+  }, [library, query, cat, ageFilter, months]);
   return (
     <div className="page">
       <h1 className="page-title">食物库</h1>
@@ -870,8 +881,16 @@ function LibraryView({ library, months, tried, onRecord, onPlan, onEdit, onAdd, 
       )}
       <div className="cat-chips">
         {["全部", ...FOOD_CATS].map(c => (
-          <button key={c} className={cat === c ? "selected" : ""} onClick={() => setCat(c)}>{c}</button>
+          <button key={c} className={cat === c ? "selected" : ""} aria-pressed={cat === c} onClick={() => setCat(c)}>{c}</button>
         ))}
+      </div>
+      <div className="age-filter-row">
+        <span className="age-filter-label">推荐月龄</span>
+        <div className="age-chips" role="group" aria-label="按推荐月龄筛选">
+          {ageFilters.map(option => (
+            <button key={option.value} className={ageFilter === option.value ? "selected" : ""} aria-pressed={ageFilter === option.value} onClick={() => setAgeFilter(option.value)}>{option.label}</button>
+          ))}
+        </div>
       </div>
       {stages.map(group => (
         <section key={group.stage} className="lib-stage">
@@ -902,7 +921,7 @@ function LibraryView({ library, months, tried, onRecord, onPlan, onEdit, onAdd, 
           })}
         </section>
       ))}
-      {stages.length === 0 && <p className="empty-hint">没有找到「{query}」，点上面的「添加食物」加进来吧。</p>}
+      {stages.length === 0 && <p className="empty-hint">{query.trim() ? `当前筛选下没有找到「${query.trim()}」` : "当前分类和月龄下没有食物"}，试试“全部月龄”或其他分类。</p>}
     </div>
   );
 }

@@ -143,8 +143,14 @@
 
 /* ---------- 食物库分类与法语名 ---------- */
 .cat-chips{display:flex;gap:7px;overflow-x:auto;scrollbar-width:none;margin-bottom:6px}
+.cat-chips::-webkit-scrollbar,.age-chips::-webkit-scrollbar{display:none}
 .cat-chips button{white-space:nowrap;height:34px;border:1px solid var(--line);border-radius:17px;background:#fff;padding:0 14px;font-size:12px;cursor:pointer;color:var(--muted)}
 .cat-chips button.selected{border-color:var(--sage);background:var(--sage);color:#fff;font-weight:600}
+.age-filter-row{display:grid;grid-template-columns:auto minmax(0,1fr);gap:9px;align-items:center;margin:10px 0 8px}
+.age-filter-label{font-size:10px;color:var(--muted);white-space:nowrap}
+.age-chips{display:flex;gap:6px;min-width:0;overflow-x:auto;scrollbar-width:none;padding:1px 12px 1px 0;overscroll-behavior-inline:contain}
+.age-chips button{flex:0 0 auto;white-space:nowrap;height:32px;border:1px solid transparent;border-radius:16px;background:#f3f2ee;padding:0 11px;color:var(--muted);font-size:10px;cursor:pointer}
+.age-chips button.selected{border-color:#c8d3c3;background:var(--sage-soft);color:var(--sage);font-weight:650}
 .fr-name{font-style:normal;font-size:10px;color:#a5a19a;font-weight:400}
 .try-tag{font-style:normal;font-size:9px;padding:2px 6px;border-radius:8px;font-weight:500;background:#fdf3e0;color:#c98a2b}
 
