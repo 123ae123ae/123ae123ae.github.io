@@ -2,7 +2,6 @@ export const languages = [
   { code: "zh-CN", label: "简体中文" },
   { code: "fr", label: "Français" },
   { code: "en", label: "English" },
-  { code: "ug", label: "ئۇيغۇرچە" },
 ];
 
 const messages = {
@@ -33,15 +32,7 @@ const messages = {
     noBaby: "There are no babies in this family", babyNickname: "Baby nickname", useNickname: "Use a nickname; a legal name is not required.",
     recordFor: "This meal belongs to", familySettings: "Family and account", createOrJoin: "Create a family or join one with an invitation.",
   },
-  ug: {
-    createFamily: "ئائىلە قۇرۇش", joinFamily: "ئائىلىگە قوشۇلۇش", inviteMember: "ئەزا تەكلىپ قىلىش", familyMembers: "ئائىلە ئەزالىرى",
-    owner: "ئىگىسى", admin: "باشقۇرغۇچى", member: "ئەزا", transferOwnership: "ئىگىدارلىقنى ئۆتكۈزۈش", leaveFamily: "ئائىلىدىن چىقىش",
-    deleteFamily: "ئائىلىنى ئۆچۈرۈش", deleteAccount: "ھېساباتنى ئۆچۈرۈش", invitationExpired: "تەكلىپ ۋاقتى ئۆتتى", invitationAccepted: "تەكلىپ قوبۇل قىلىندى",
-    deleteWarning: "بۇ مەشغۇلاتنى ئەسلىگە كەلتۈرگىلى بولمايدۇ. يەنە بىر قېتىم جەزملەڭ.", permissionDenied: "بۇ مەشغۇلاتقا ھوقۇقىڭىز يوق.", saveFailed: "ساقلاش مەغلۇپ بولدى.",
-    networkError: "تور خاتالىقى. كېيىن قايتا سىناڭ.", addBaby: "بوۋاق قوشۇش", manageBabies: "بوۋاقلارنى باشقۇرۇش", switchBaby: "بوۋاق ئالماشتۇرۇش",
-    noBaby: "بۇ ئائىلىدە بوۋاق يوق", babyNickname: "بوۋاقنىڭ لەقىمى", useNickname: "ھەقىقىي ئىسىم شەرت ئەمەس، لەقەم ئىشلىتىڭ.",
-    recordFor: "بۇ تاماق خاتىرىسى", familySettings: "ئائىلە ۋە ھېسابات", createOrJoin: "ئائىلە قۇرۇڭ ياكى تەكلىپ ئارقىلىق قوشۇلۇڭ.",
-  },
 };
 
+export const normalizeLocale = locale => languages.some(language => language.code === locale) ? locale : "zh-CN";
 export const translate = (locale, key) => messages[locale]?.[key] || messages["zh-CN"][key] || key;

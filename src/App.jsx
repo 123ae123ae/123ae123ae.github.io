@@ -3,7 +3,7 @@ import * as Dialog from "@radix-ui/react-dialog";
 import { motion, AnimatePresence } from "motion/react";
 import { createClient } from "@supabase/supabase-js";
 import { chooseActiveBaby, chooseActiveFamily, recordScope, scopedStorageKey } from "./familyScope.js";
-import { languages, translate } from "./i18n.js";
+import { languages, normalizeLocale, translate } from "./i18n.js";
 import {
   Activity, AlertTriangle, ArrowUp, Baby, CalendarDays, Camera, Check, ChevronDown, ChevronLeft, ChevronRight,
   ClipboardList, Copy, Download, Home, ImagePlus, Images, Languages, Library, LogOut, Mail, Pencil, Plus, RefreshCw, Settings, Share2, ShieldCheck, Sparkles, Sprout, Trash2, UserPlus, Users, X,
@@ -1319,7 +1319,7 @@ function App() {
   const [familySettingsOpen, setFamilySettingsOpen] = useState(false);
   const [familyGateMessage, setFamilyGateMessage] = useState("");
   const [familyBusy, setFamilyBusy] = useState(false);
-  const [locale, setLocale] = useState(() => localStorage.getItem("baby-journal-locale") || "zh-CN");
+  const [locale, setLocale] = useState(() => normalizeLocale(localStorage.getItem("baby-journal-locale")));
   const [showScrollTop, setShowScrollTop] = useState(false);
   const inviteToken = useMemo(() => new URLSearchParams(location.search).get("invite") || "", []);
 
@@ -1417,7 +1417,11 @@ function App() {
     if (membershipError) { setFamilyGateMessage("家庭资料暂时无法加载，请检查网络"); setFamilyLoading(false); return null; }
     const rows = (membershipRows || []).map(row => ({ ...row, family: Array.isArray(row.families) ? row.families[0] : row.families }));
     setMemberships(rows);
-    if (preference?.locale) { setLocale(preference.locale); localStorage.setItem("baby-journal-locale", preference.locale); }
+    if (preference?.locale) {
+      const safeLocale = normalizeLocale(preference.locale);
+      setLocale(safeLocale); localStorage.setItem("baby-journal-locale", safeLocale);
+      if (safeLocale !== preference.locale) await supabase.from("user_preferences").update({ locale: safeLocale, updated_at: new Date().toISOString() }).eq("user_id", user.id);
+    }
     const chosenMembership = chooseActiveFamily(rows, preference?.active_family_id, localStorage.getItem(`active-family-${user.id}`));
     if (!chosenMembership) {
       setActiveMembership(null); setActiveFamily(null); setBabies([]); setActiveBaby(null); setFamilyLoading(false); return null;
