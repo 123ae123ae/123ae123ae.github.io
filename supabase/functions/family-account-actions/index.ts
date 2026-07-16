@@ -35,6 +35,36 @@ async function collectAndRemoveBabyFiles(admin: AdminClient, babyIds: string[]) 
   ]);
 }
 
+async function refreshPathsAsService(admin: AdminClient, bucket: string, paths: Array<string | null | undefined>) {
+  const unique = [...new Set(paths.filter((path): path is string => !!path))];
+  for (const path of unique) {
+    const { data: file, error: downloadError } = await admin.storage.from(bucket).download(path);
+    if (downloadError || !file) throw new Error(`storage_download_failed:${bucket}`);
+    const { error: removeError } = await admin.storage.from(bucket).remove([path]);
+    if (removeError) throw new Error(`storage_release_failed:${bucket}`);
+    const { error: uploadError } = await admin.storage.from(bucket).upload(path, file, {
+      contentType: file.type || undefined,
+      upsert: false,
+    });
+    if (uploadError) throw new Error(`storage_reupload_failed:${bucket}`);
+  }
+}
+
+async function refreshRetainedFamilyFiles(admin: AdminClient, familyIds: string[]) {
+  if (!familyIds.length) return;
+  const { data: babies, error: babyError } = await admin.from("babies").select("id,avatar_path").in("family_id", familyIds);
+  if (babyError) throw new Error("retained_file_manifest_failed");
+  const babyIds = (babies || []).map((baby) => baby.id);
+  const { data: meals, error: mealError } = babyIds.length
+    ? await admin.from("meals").select("photo_path").in("baby_id", babyIds).not("photo_path", "is", null)
+    : { data: [], error: null };
+  if (mealError) throw new Error("retained_file_manifest_failed");
+  await Promise.all([
+    refreshPathsAsService(admin, "baby-avatars", (babies || []).map((baby) => baby.avatar_path)),
+    refreshPathsAsService(admin, "meal-photos", (meals || []).map((meal) => meal.photo_path)),
+  ]);
+}
+
 Deno.serve(async (request) => {
   if (request.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   if (request.method !== "POST") return json({ error: "method_not_allowed" }, 405);
@@ -105,9 +135,18 @@ Deno.serve(async (request) => {
         if (error) throw new Error("owned_family_delete_failed");
       }
 
-      await admin.from("family_members").delete().eq("user_id", user.id);
-      await admin.from("profiles").delete().eq("id", user.id);
-      const { error: deleteUserError } = await admin.auth.admin.deleteUser(user.id);
+      const ownedFamilyIds = new Set(owned.map((membership) => membership.family_id));
+      const retainedFamilyIds = (memberships || [])
+        .map((membership) => membership.family_id)
+        .filter((familyId) => !ownedFamilyIds.has(familyId));
+
+      let { error: deleteUserError } = await admin.auth.admin.deleteUser(user.id);
+      if (deleteUserError && retainedFamilyIds.length) {
+        // Storage objects uploaded by this user can prevent Auth deletion. Recreate retained
+        // family files with the service client so shared family data remains available.
+        await refreshRetainedFamilyFiles(admin, retainedFamilyIds);
+        ({ error: deleteUserError } = await admin.auth.admin.deleteUser(user.id));
+      }
       if (deleteUserError) throw new Error("auth_user_delete_failed");
       return json({ ok: true });
     }
