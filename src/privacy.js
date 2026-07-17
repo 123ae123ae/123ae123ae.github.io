@@ -1,8 +1,7 @@
-export const PRIVACY_VERSION = "2026-07-15.2";
-export const PRIVACY_EFFECTIVE_DATE = "2026-07-15";
+export const PRIVACY_VERSION = "2026-07-17.1";
+export const PRIVACY_EFFECTIVE_DATE = "2026-07-17";
 
-// 正式公开注册前必须通过 Vite 环境变量填写真实的数据负责人和可收信邮箱。
-export const PRIVACY_CONTROLLER = import.meta.env.VITE_PRIVACY_CONTROLLER || "宝贝食光独立开发者";
+export const PRIVACY_CONTROLLER = import.meta.env.VITE_PRIVACY_CONTROLLER || "Ham Ham 独立开发者";
 export const PRIVACY_CONTACT = import.meta.env.VITE_PRIVACY_CONTACT || "wayoolex@gmail.com";
 
 const common = {
@@ -23,30 +22,30 @@ export const privacyPolicies = {
         `隐私联系：${PRIVACY_CONTACT}。你可以通过该联系方式提出访问、更正、导出或删除请求。`,
       ] },
       { title: "2. 我们处理哪些数据", bullets: [
-        "账户与家庭：邮箱、显示名称、家庭身份、家庭成员关系、语言和当前宝宝偏好。",
+        "账户与家庭：邮箱、显示名称、家庭身份、家庭成员关系和语言偏好。",
         "宝宝资料：昵称、出生日期（可选）、性别（可选）、头像和备注。请优先使用昵称，不要填写不必要的真实身份信息。",
         "辅食记录：食物、时间、分量、喜欢程度、来源、备注、计划、提醒和统计。",
         "喂养观察：用户自愿记录的身体反应、皮肤或消化情况等家庭观察。请不要把本工具当作医疗记录。",
         "照片：用户主动上传的餐食照片和宝宝头像，可能包含宝宝或家庭环境。",
-        "设备数据：为离线使用保存在当前浏览器中的记录、待同步队列和必要的登录会话信息。",
+        "设备数据：为离线使用保存在当前设备中的记录、待同步队列、语言设置和必要的登录会话信息。",
       ] },
       { title: "3. 为什么处理，以及法律依据", bullets: [
-        "提供账户、家庭共享、宝宝切换、记录、计划、照片和同步功能：为提供用户主动请求的服务所必需。",
+        "提供账户、家庭共享、宝宝资料、记录、计划、照片和同步功能：为提供用户主动请求的服务所必需。",
         "保障登录、权限隔离、防止滥用和排查故障：基于维护服务安全的合法利益。",
         "提供可选的喂养观察记录：仅用于家庭日记展示，不进行诊断、风险判断或医疗建议。",
         "我们不进行广告投放、跨站跟踪、自动化决策或商业画像。",
       ] },
       { title: "4. 谁可以看到数据", bullets: [
-        "同一家庭中已接受邀请的成员，只能访问该家庭及当前有权访问的宝宝数据。",
+        "同一家庭中已接受邀请的成员，只能访问该家庭宝宝的数据。当前版本每个家庭支持一个宝宝。",
         "家庭 owner/admin 可管理家庭和宝宝资料；具体权限受数据库行级安全策略约束。",
-        "Supabase 提供身份验证、数据库和文件存储；GitHub Pages 提供静态网页托管。它们仅在提供技术服务所需范围内处理数据。",
+        "Supabase 提供身份验证、数据库和文件存储；GitHub Pages 仅托管公开的隐私政策网页。它们仅在提供技术服务所需范围内处理数据。",
         "除非法律要求或为了保护用户安全，我们不会把数据提供给其他第三方。",
       ] },
       { title: "5. 保存期限与删除", bullets: [
         "普通业务数据：在账户或家庭有效期间保存；用户删除账户、家庭、宝宝或单条记录时，相应在线业务数据和关联照片会被删除。",
         "迁移备份：2026-07-15 创建的 migration_backup_20260715 最长保留 30 天，计划在 2026-08-14 完成核验后销毁；不得用于日常查询或产品功能。",
         "家庭邀请：邀请 7 天后失效；失效、取消或已接受的邀请记录最多再保留 30 天用于故障排查，然后清理。",
-        "离线副本：保留在用户设备中，直到成功同步后被新数据覆盖、用户删除账户，或用户清除浏览器/主屏幕应用数据。",
+        "离线副本：保留在用户设备中，直到成功同步后被新数据覆盖、用户删除账户，或用户清除 App 数据。",
         "托管服务商的灾难恢复备份和必要安全日志按其受限的备份轮换与安全周期删除，不能用于恢复单个用户已删除的普通记录。",
       ] },
       { title: "6. 你的权利", bullets: [
@@ -79,7 +78,7 @@ export const privacyPolicies = {
         `Contact vie privée : ${PRIVACY_CONTACT}. Vous pouvez utiliser ce contact pour demander l’accès, la rectification, l’export ou l’effacement.`,
       ] },
       { title: "2. Données traitées", bullets: [
-        "Compte et famille : e-mail, nom d’affichage, lien familial, membres, langue et préférence du bébé actif.",
+        "Compte et famille : e-mail, nom d’affichage, lien familial, membres et préférence de langue.",
         "Profil du bébé : surnom, date de naissance facultative, sexe facultatif, avatar et notes. Utilisez de préférence un surnom.",
         "Alimentation : aliments, heure, quantité, appréciation, provenance, notes, programmes, rappels et statistiques.",
         "Observations alimentaires facultatives : réactions, peau ou digestion notées volontairement pour le journal familial. Ce service n’est pas un dossier médical.",
@@ -87,22 +86,22 @@ export const privacyPolicies = {
         "Données locales : copie hors ligne, file d’attente de synchronisation et informations de session indispensables.",
       ] },
       { title: "3. Finalités et bases juridiques", bullets: [
-        "Fournir le compte, le partage familial, les profils de bébés, les repas, plans, photos et la synchronisation : exécution du service demandé par l’utilisateur.",
+        "Fournir le compte, le partage familial, le profil du bébé, les repas, programmes, photos et la synchronisation : exécution du service demandé par l’utilisateur.",
         "Sécuriser les accès, séparer les familles, prévenir les abus et diagnostiquer les incidents : intérêt légitime à assurer la sécurité du service.",
         "Afficher les observations alimentaires facultatives : uniquement dans le journal familial, sans diagnostic, évaluation des risques ni conseil médical.",
         "Aucune publicité ciblée, aucun suivi intersites, aucune décision automatisée ni profilage commercial.",
       ] },
       { title: "4. Destinataires", bullets: [
-        "Les membres invités et acceptés de la même famille, dans la limite de leurs droits.",
+        "Les membres invités et acceptés de la même famille, dans la limite de leurs droits. Cette version prend en charge un bébé par famille.",
         "Les owner/admin gèrent la famille et les profils bébé ; les règles RLS de la base contrôlent chaque accès.",
-        "Supabase fournit l’authentification, la base et le stockage de fichiers ; GitHub Pages héberge les fichiers statiques du site.",
+        "Supabase fournit l’authentification, la base et le stockage de fichiers ; GitHub Pages héberge uniquement la page publique de la politique de confidentialité.",
         "Aucun autre partage, sauf obligation légale ou nécessité de protéger les utilisateurs.",
       ] },
       { title: "5. Durées de conservation", bullets: [
         "Données courantes : pendant la vie du compte ou de la famille ; une suppression demandée efface les données en ligne concernées et les photos associées.",
         "Sauvegarde de migration : migration_backup_20260715, créée le 15/07/2026, est conservée au maximum 30 jours et doit être détruite après vérification le 14/08/2026. Elle n’est pas utilisée par l’application.",
         "Invitations : valables 7 jours ; les invitations expirées, annulées ou acceptées sont conservées au plus 30 jours supplémentaires pour le diagnostic.",
-        "Copie hors ligne : reste sur l’appareil jusqu’à synchronisation/remplacement, suppression du compte ou effacement des données du navigateur/de l’app installée.",
+        "Copie hors ligne : reste sur l’appareil jusqu’à synchronisation/remplacement, suppression du compte ou effacement des données de l’app.",
         "Les sauvegardes de reprise et journaux de sécurité du prestataire suivent une rotation restreinte et ne servent pas à restaurer une entrée utilisateur supprimée.",
       ] },
       { title: "6. Vos droits", bullets: [
@@ -135,7 +134,7 @@ export const privacyPolicies = {
         `Privacy contact: ${PRIVACY_CONTACT}. Use this contact to request access, correction, export or deletion.`,
       ] },
       { title: "2. Data we process", bullets: [
-        "Account and family: email, display name, family relationship, members, language and active-baby preference.",
+        "Account and family: email, display name, family relationship, members and language preference.",
         "Baby profile: nickname, optional date of birth, optional gender, avatar and notes. Prefer a nickname and avoid unnecessary identity details.",
         "Feeding journal: foods, time, quantity, liking, source, notes, plans, reminders and statistics.",
         "Optional feeding observations: reactions, skin or digestion notes voluntarily added to the family journal. This service is not a medical record.",
@@ -143,22 +142,22 @@ export const privacyPolicies = {
         "Device data: offline copies, pending sync queues and session information needed to provide the service.",
       ] },
       { title: "3. Purposes and legal bases", bullets: [
-        "Provide accounts, family sharing, baby switching, records, plans, photos and sync: necessary to provide the service requested by the user.",
+        "Provide accounts, family sharing, the baby profile, records, plans, photos and sync: necessary to provide the service requested by the user.",
         "Secure access, isolate families, prevent misuse and diagnose incidents: legitimate interest in keeping the service secure.",
         "Display optional feeding observations: for the family journal only, without diagnosis, risk assessment or medical advice.",
         "No targeted advertising, cross-site tracking, automated decisions or commercial profiling.",
       ] },
       { title: "4. Who can access the data", bullets: [
-        "Accepted members of the same family, within their assigned permissions.",
+        "Accepted members of the same family, within their assigned permissions. This version supports one baby per family.",
         "Family owners/admins manage the family and baby profiles; database RLS rules validate every data access.",
-        "Supabase provides authentication, database and file storage; GitHub Pages hosts the site’s static files.",
+        "Supabase provides authentication, database and file storage; GitHub Pages hosts only the public privacy-policy page.",
         "No other disclosure unless legally required or needed to protect users.",
       ] },
       { title: "5. Retention and deletion", bullets: [
         "Operational data: retained while the account or family remains active; user-requested deletion removes the relevant online data and associated photos.",
         "Migration backup: migration_backup_20260715, created on 15 July 2026, is kept for no more than 30 days and must be destroyed after verification on 14 August 2026. It is not used by the app.",
         "Invitations: valid for 7 days; expired, cancelled or accepted rows are retained for no more than 30 additional days for troubleshooting.",
-        "Offline copy: remains on the device until sync/replacement, account deletion, or clearing browser/installed-app data.",
+        "Offline copy: remains on the device until sync/replacement, account deletion, or clearing the app’s data.",
         "Provider disaster-recovery backups and necessary security logs follow a restricted rotation cycle and are not used to restore an individual deleted journal entry.",
       ] },
       { title: "6. Your rights", bullets: [
