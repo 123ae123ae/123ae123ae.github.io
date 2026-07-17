@@ -82,6 +82,7 @@ const ageLabel = birth => {
 
 /* ---------- 食物库（数据来自法国辅食添加对照表，见 foodLibrary.js） ---------- */
 import { FOOD_LIBRARY, FOOD_CATS } from "./foodLibrary.js";
+import { mergeFoodSettings, sameSettings } from "./foodSettings.js";
 const stageForMonths = m => m >= 12 ? "12个月+" : m >= 8 ? "8–12个月" : m >= 6 ? "6–8个月" : "4–6个月";
 // 翻译修正后的兼容表：保留旧版本里用户已经编辑过的文字和照片。
 const LEGACY_BASE_NAMES = {
@@ -104,13 +105,13 @@ const mergeLibrary = customs => {
     const aliases = aliasesForBase(f.name);
     const edit = customs.find(c => c.baseName === f.name || (!c.custom && !c.baseName && (c.name === f.name || aliases.includes(c.name))));
     if (edit?.hidden) return null;
-    return edit
+    return edit && !edit.reset && !edit.deleted
       ? { ...f, ...edit, baseName: f.name, custom: false, stage: stageForMonths(edit.months ?? f.months), edited: true }
       : { ...f, baseName: f.name, custom: false, stage: stageForMonths(f.months) };
   }).filter(Boolean);
   customs
     .filter(c => c.custom || (!c.baseName && !FOOD_LIBRARY.some(f => f.name === c.name) && !LEGACY_BASE_NAMES[c.name]))
-    .filter(c => !c.hidden)
+    .filter(c => !c.hidden && !c.deleted && !c.reset)
     .forEach(c => merged.push({ emoji: "🍽️", cat: "其他", ...c, stage: stageForMonths(c.months ?? 6), custom: true }));
   merged.sort((a, b) => (a.months ?? 6) - (b.months ?? 6));
   mergedLibrary = merged;
@@ -1607,8 +1608,8 @@ function App() {
       ? c.baseName !== baseName && !(c.name === baseName && !c.custom) && !(aliases.includes(c.name) && !c.custom)
       : c.name !== original?.name);
     const saved = baseName
-      ? { ...data, name: finalName, baseName, custom: false }
-      : { ...data, name: finalName, custom: true };
+      ? { ...data, name: finalName, baseName, custom: false, updatedAt: new Date().toISOString() }
+      : { ...data, name: finalName, custom: true, updatedAt: new Date().toISOString() };
     saveCustomFoods([...rest, saved]);
     setEditingFood(null);
     setNotice(original ? `「${finalName}」已更新` : `「${finalName}」已加入食物库`);
@@ -1619,17 +1620,24 @@ function App() {
     const rest = customFoods.filter(c => food.custom
       ? !(c.custom && c.name === food.name)
       : c.baseName !== baseName && !(c.name === baseName && !c.custom) && !(aliases.includes(c.name) && !c.custom));
-    if (!food.custom && action === "delete") {
-      saveCustomFoods([...rest, { baseName, name: food.name, hidden: true, custom: false }]);
+    const stamp = new Date().toISOString();
+    if (food.custom) {
+      // 删除保留墓碑，避免另一台设备把它同步复活
+      saveCustomFoods([...rest, { name: food.name, custom: true, deleted: true, updatedAt: stamp }]);
+    } else if (action === "delete") {
+      saveCustomFoods([...rest, { baseName, name: food.name, hidden: true, custom: false, updatedAt: stamp }]);
     } else {
-      saveCustomFoods(rest);
+      saveCustomFoods([...rest, { baseName, name: baseName, reset: true, custom: false, updatedAt: stamp }]);
     }
     setEditingFood(null);
     setNotice(food.custom ? `已删除「${food.name}」` : action === "restore" ? `「${baseName}」已恢复默认` : `已隐藏「${food.name}」`);
   };
   const restoreHiddenFoods = () => {
+    const stamp = new Date().toISOString();
     const count = customFoods.filter(c => c.hidden).length;
-    saveCustomFoods(customFoods.filter(c => !c.hidden));
+    saveCustomFoods(customFoods.map(c => c.hidden
+      ? { baseName: c.baseName || c.name, name: c.baseName || c.name, reset: true, custom: false, updatedAt: stamp }
+      : c));
     setNotice(`已恢复 ${count} 个内置食物`);
   };
 
@@ -1646,11 +1654,12 @@ function App() {
       const localPlanKey = scopedStorageKey(planKey, scopeBaby.id);
 
       const localFoodSettings = readLocal(scopedStorageKey(customFoodsKey, scopeBaby.id), []);
-      if (localFoodSettings.length) await supabase.from("baby_foods").upsert({ family_id: scope.family_id, baby_id: scope.baby_id, settings: localFoodSettings, updated_by: user.id, updated_at: new Date().toISOString() }, { onConflict: "baby_id" });
       const { data: cloudFoodSettings } = await supabase.from("baby_foods").select("settings").eq("family_id", scope.family_id).eq("baby_id", scope.baby_id).maybeSingle();
-      if (cloudFoodSettings?.settings) {
-        setCustomFoods(cloudFoodSettings.settings);
-        writeLocal(scopedStorageKey(customFoodsKey, scopeBaby.id), cloudFoodSettings.settings);
+      const mergedFoodSettings = mergeFoodSettings(cloudFoodSettings?.settings || [], localFoodSettings);
+      setCustomFoods(mergedFoodSettings);
+      writeLocal(scopedStorageKey(customFoodsKey, scopeBaby.id), mergedFoodSettings);
+      if (!sameSettings(mergedFoodSettings, cloudFoodSettings?.settings || [])) {
+        await supabase.from("baby_foods").upsert({ family_id: scope.family_id, baby_id: scope.baby_id, settings: mergedFoodSettings, updated_by: user.id, updated_at: new Date().toISOString() }, { onConflict: "baby_id" });
       }
 
       // 先处理离线期间删除的计划，再上传本机计划，最后合并家庭云端计划。
