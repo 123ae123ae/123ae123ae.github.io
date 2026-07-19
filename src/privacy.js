@@ -41,7 +41,7 @@ export const privacyPolicies = {
         "尝试新食物前，如对宝宝的年龄、过敏情况、饮食安排或健康状况有疑问，请咨询医生或其他合格医护人员。App 不能替代专业意见。",
       ] },
       { title: "5. 谁可以看到数据", bullets: [
-        "同一家庭中已接受邀请的成员，只能访问该家庭中一个或多个宝宝的数据。",
+        "同一家庭中已接受邀请的成员，只能访问该家庭宝宝的数据。当前免费版本每个家庭支持一个宝宝。",
         "家庭拥有者可管理家庭、宝宝核心资料、成员和邀请码；普通成员可查看、记录、同步及更新宝宝头像，但不能管理家庭或修改宝宝核心资料。具体权限受数据库行级安全策略约束。",
         "Supabase 提供身份验证、数据库和文件存储；GitHub Pages 仅托管公开的隐私政策网页。它们仅在提供技术服务所需范围内处理数据。",
         "除非法律要求或为了保护用户安全，我们不会把数据提供给其他第三方。",
@@ -102,7 +102,7 @@ export const privacyPolicies = {
         "Avant d’introduire un nouvel aliment, demandez l’avis d’un médecin ou d’un autre professionnel de santé qualifié si vous avez un doute sur l’âge, les allergies, l’alimentation ou la santé du bébé. L’application ne remplace pas un avis professionnel.",
       ] },
       { title: "5. Destinataires", bullets: [
-        "Les membres invités et acceptés de la même famille peuvent accéder aux données d’un ou plusieurs bébés de cette famille, dans la limite de leurs droits.",
+        "Les membres invités et acceptés de la même famille peuvent accéder aux données du bébé de cette famille, dans la limite de leurs droits. La version gratuite actuelle prend en charge un bébé par famille.",
         "Le propriétaire gère la famille, les profils principaux des bébés, les membres et les invitations. Les membres ordinaires peuvent consulter, enregistrer, synchroniser et modifier l’avatar du bébé, sans pouvoir gérer la famille ni modifier le profil principal. Les règles RLS de la base contrôlent chaque accès.",
         "Supabase fournit l’authentification, la base et le stockage de fichiers ; GitHub Pages héberge uniquement la page publique de la politique de confidentialité.",
         "Aucun autre partage, sauf obligation légale ou nécessité de protéger les utilisateurs.",
@@ -163,7 +163,7 @@ export const privacyPolicies = {
         "Before introducing a new food, consult a doctor or another qualified healthcare professional if you have concerns about the baby’s age, allergies, diet or health. The app does not replace professional advice.",
       ] },
       { title: "5. Who can access the data", bullets: [
-        "Accepted members of the same family can access the data of one or more babies in that family, within their assigned permissions.",
+        "Accepted members of the same family can access that family’s baby data within their assigned permissions. The current free version supports one baby per family.",
         "The owner manages the family, core baby profiles, members and invitations. Ordinary members can view, record, sync and update a baby avatar, but cannot manage the family or edit the core baby profile. Database RLS rules validate every access.",
         "Supabase provides authentication, database and file storage; GitHub Pages hosts only the public privacy-policy page.",
         "No other disclosure unless legally required or needed to protect users.",
