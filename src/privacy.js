@@ -37,7 +37,7 @@ export const privacyPolicies = {
       ] },
       { title: "4. 健康信息、推荐来源和医疗免责声明", bullets: [
         "Ham Ham 是家庭辅食记录工具，不是医疗器械，也不提供诊断、治疗、个体化营养方案或紧急医疗服务。食物推荐仅依据宝宝月龄、尚未记录的食物和通用资料自动显示，不能判断某种食物是否适合某个宝宝。",
-        "食物月龄和准备提示依据法国公开辅食资料整理，包括 Santé publique France / Manger Bouger、Assurance Maladie（ameli.fr）及 Cuisinez pour bébé。资料可能更新，请以最新官方建议和医护人员意见为准。",
+        "食物月龄和准备提示依据法国官方资料 Santé publique France / Manger Bouger、Assurance Maladie（ameli.fr）整理，并参考辅助资料 Cuisinez pour bébé。资料可能更新，请以最新官方建议和医护人员意见为准。",
         "健康足月宝宝通常无需在每一种食物前逐次联系医生；但建议在常规婴儿随访中讨论辅食。早产、已有食物过敏、家庭过敏史、医生规定的特殊饮食或其他健康疑问，应在开始辅食或尝试相关食物前咨询医生、儿科医生或 PMI。",
         "出现呼吸困难、面部或舌头肿胀、明显嗜睡或意识异常等严重反应时，应立即停止喂食并拨打法国 15 或 112。不要只在 App 中记录或等待。",
       ] },
@@ -99,7 +99,7 @@ export const privacyPolicies = {
       ] },
       { title: "4. Informations de santé, sources des suggestions et avertissement médical", bullets: [
         "Ham Ham est un journal familial de diversification alimentaire. Ce n’est pas un dispositif médical et il ne fournit ni diagnostic, ni traitement, ni programme nutritionnel personnalisé, ni service d’urgence. Les suggestions sont générées à partir de l’âge du bébé, des aliments non enregistrés et de repères généraux ; elles ne déterminent pas si un aliment convient à un bébé particulier.",
-        "Les repères d’âge et de préparation sont synthétisés à partir de ressources françaises publiques, notamment Santé publique France / Manger Bouger, l’Assurance Maladie (ameli.fr) et Cuisinez pour bébé. Ces informations peuvent évoluer : référez-vous aux recommandations officielles à jour et aux professionnels de santé.",
+        "Les repères d’âge et de préparation sont synthétisés à partir des recommandations officielles de Santé publique France / Manger Bouger et de l’Assurance Maladie (ameli.fr), avec Cuisinez pour bébé comme source secondaire. Ces informations peuvent évoluer : référez-vous aux recommandations officielles à jour et aux professionnels de santé.",
         "Un bébé né à terme et en bonne santé n’a généralement pas besoin d’un avis médical avant chaque aliment, mais la diversification doit être abordée lors du suivi habituel. En cas de prématurité, allergie alimentaire connue, antécédents familiaux d’allergie, régime prescrit ou autre question de santé, demandez l’avis du médecin, du pédiatre ou de la PMI avant de commencer ou d’introduire l’aliment concerné.",
         "En cas de difficulté respiratoire, gonflement du visage ou de la langue, somnolence marquée ou trouble de la conscience, arrêtez immédiatement et appelez le 15 ou le 112 en France. Ne vous contentez pas d’enregistrer la réaction dans l’application ou d’attendre.",
       ] },
@@ -161,7 +161,7 @@ export const privacyPolicies = {
       ] },
       { title: "4. Health information, suggestion sources and medical disclaimer", bullets: [
         "Ham Ham is a family complementary-feeding journal. It is not a medical device and does not provide diagnosis, treatment, personalised nutrition plans or emergency care. Suggestions are generated from the baby’s age, foods not yet recorded and general references; they cannot determine whether a food is suitable for an individual baby.",
-        "Age and preparation guidance is summarised from public French resources, including Santé publique France / Manger Bouger, Assurance Maladie (ameli.fr) and Cuisinez pour bébé. Guidance may change; follow current official advice and healthcare professionals.",
+        "Age and preparation guidance is summarised from official recommendations by Santé publique France / Manger Bouger and Assurance Maladie (ameli.fr), with Cuisinez pour bébé used as a secondary reference. Guidance may change; follow current official advice and healthcare professionals.",
         "A healthy, full-term baby generally does not need medical advice before every food, but complementary feeding should be discussed during routine follow-up. For prematurity, a known food allergy, family allergy history, a prescribed diet or another health concern, consult a doctor, paediatrician or PMI before starting or introducing the relevant food.",
         "For breathing difficulty, swelling of the face or tongue, marked drowsiness or altered consciousness, stop feeding and call 15 or 112 in France immediately. Do not only record the reaction in the app or wait.",
       ] },
