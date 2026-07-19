@@ -102,12 +102,15 @@ Deno.serve(async (request) => {
 
     if (action === "delete_family") {
       const familyId = String(body.family_id || "");
-      const { data: family } = await admin.from("families").select("id,name,owner_id").eq("id", familyId).maybeSingle();
+      const { data: family } = await admin.from("families").select("id,name").eq("id", familyId).maybeSingle();
       if (!family) return json({ error: "family_not_found" }, 404);
-      if (family.owner_id !== user.id) return json({ error: "owner_required" }, 403);
+      // 所有权以 family_members.role 为准；families.owner_id 是展示字段，不作为授权依据
+      const { data: ownerMembership } = await admin.from("family_members").select("role")
+        .eq("family_id", familyId).eq("user_id", user.id).maybeSingle();
+      if (ownerMembership?.role !== "owner") return json({ error: "owner_required" }, 403);
       const { data: babies } = await admin.from("babies").select("id").eq("family_id", familyId);
       await collectAndRemoveBabyFiles(admin, (babies || []).map((baby) => baby.id));
-      const { error } = await admin.from("families").delete().eq("id", familyId).eq("owner_id", user.id);
+      const { error } = await admin.from("families").delete().eq("id", familyId);
       if (error) throw new Error("family_delete_failed");
       return json({ ok: true, deleted_family: family.name });
     }
@@ -131,7 +134,7 @@ Deno.serve(async (request) => {
       for (const membership of owned) {
         const { data: babies } = await admin.from("babies").select("id").eq("family_id", membership.family_id);
         await collectAndRemoveBabyFiles(admin, (babies || []).map((baby) => baby.id));
-        const { error } = await admin.from("families").delete().eq("id", membership.family_id).eq("owner_id", user.id);
+        const { error } = await admin.from("families").delete().eq("id", membership.family_id);
         if (error) throw new Error("owned_family_delete_failed");
       }
 
