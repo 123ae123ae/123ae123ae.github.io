@@ -1,5 +1,5 @@
-export const PRIVACY_VERSION = "2026-07-17.1";
-export const PRIVACY_EFFECTIVE_DATE = "2026-07-17";
+export const PRIVACY_VERSION = "2026-07-19.1";
+export const PRIVACY_EFFECTIVE_DATE = "2026-07-19";
 
 export const PRIVACY_CONTROLLER = import.meta.env.VITE_PRIVACY_CONTROLLER || "Ham Ham 独立开发者";
 export const PRIVACY_CONTACT = import.meta.env.VITE_PRIVACY_CONTACT || "wayoolex@gmail.com";
@@ -35,32 +35,38 @@ export const privacyPolicies = {
         "提供可选的喂养观察记录：仅用于家庭日记展示，不进行诊断、风险判断或医疗建议。",
         "我们不进行广告投放、跨站跟踪、自动化决策或商业画像。",
       ] },
-      { title: "4. 谁可以看到数据", bullets: [
+      { title: "4. 健康信息、推荐来源和医疗免责声明", bullets: [
+        "Ham Ham 是家庭辅食记录工具，不是医疗器械，也不提供诊断、治疗、个体化营养方案或紧急医疗服务。食物推荐仅依据宝宝月龄、尚未记录的食物和通用资料自动显示，不能判断某种食物是否适合某个宝宝。",
+        "食物月龄和准备提示依据法国公开辅食资料整理，包括 Santé publique France / Manger Bouger、Assurance Maladie（ameli.fr）及 Cuisinez pour bébé。资料可能更新，请以最新官方建议和医护人员意见为准。",
+        "健康足月宝宝通常无需在每一种食物前逐次联系医生；但建议在常规婴儿随访中讨论辅食。早产、已有食物过敏、家庭过敏史、医生规定的特殊饮食或其他健康疑问，应在开始辅食或尝试相关食物前咨询医生、儿科医生或 PMI。",
+        "出现呼吸困难、面部或舌头肿胀、明显嗜睡或意识异常等严重反应时，应立即停止喂食并拨打法国 15 或 112。不要只在 App 中记录或等待。",
+      ] },
+      { title: "5. 谁可以看到数据", bullets: [
         "同一家庭中已接受邀请的成员，只能访问该家庭宝宝的数据。当前版本每个家庭支持一个宝宝。",
-        "家庭 owner/admin 可管理家庭和宝宝资料；具体权限受数据库行级安全策略约束。",
+        "家庭拥有者可管理家庭和宝宝资料；普通成员可在其权限范围内查看、记录和同步。具体权限受数据库行级安全策略约束。",
         "Supabase 提供身份验证、数据库和文件存储；GitHub Pages 仅托管公开的隐私政策网页。它们仅在提供技术服务所需范围内处理数据。",
         "除非法律要求或为了保护用户安全，我们不会把数据提供给其他第三方。",
       ] },
-      { title: "5. 保存期限与删除", bullets: [
+      { title: "6. 保存期限与删除", bullets: [
         "普通业务数据：在账户或家庭有效期间保存；用户删除账户、家庭、宝宝或单条记录时，相应在线业务数据和关联照片会被删除。",
         "迁移备份：2026-07-15 创建的 migration_backup_20260715 最长保留 30 天，计划在 2026-08-14 完成核验后销毁；不得用于日常查询或产品功能。",
         "家庭邀请：邀请 7 天后失效；失效、取消或已接受的邀请记录最多再保留 30 天用于故障排查，然后清理。",
         "离线副本：保留在用户设备中，直到成功同步后被新数据覆盖、用户删除账户，或用户清除 App 数据。",
         "托管服务商的灾难恢复备份和必要安全日志按其受限的备份轮换与安全周期删除，不能用于恢复单个用户已删除的普通记录。",
       ] },
-      { title: "6. 你的权利", bullets: [
+      { title: "7. 你的权利", bullets: [
         "访问、更正、删除、限制处理和在适用时导出你的数据。",
         "随时修改或删除自己有权管理的喂养观察。",
         "对基于合法利益的处理提出异议。",
         "如果认为个人数据处理不当，可以向法国 CNIL 投诉。",
       ] },
-      { title: "7. 宝宝信息", paragraphs: [
+      { title: "8. 宝宝信息", paragraphs: [
         "本服务由照顾宝宝的成年人使用，不面向儿童自行注册。请只记录家庭辅食日记所需要的内容，并避免填写不必要的真实身份信息。",
       ] },
-      { title: "8. 安全措施", paragraphs: [
+      { title: "9. 安全措施", paragraphs: [
         "我们使用独立个人账户、家庭成员关系、baby_id 数据归属、Supabase Row Level Security 和私有文件存储路径限制访问。前端只使用可公开的 publishable key，不包含数据库管理密钥。任何互联网服务都无法保证绝对安全；如发现疑似泄露，请立即联系我们。",
       ] },
-      { title: "9. 政策更新", paragraphs: [
+      { title: "10. 政策更新", paragraphs: [
         "如处理目的、数据类型、接收方或保存期限发生实质变化，我们会更新版本和生效日期，并在适当情况下重新取得同意。",
       ] },
     ],
@@ -91,32 +97,38 @@ export const privacyPolicies = {
         "Afficher les observations alimentaires facultatives : uniquement dans le journal familial, sans diagnostic, évaluation des risques ni conseil médical.",
         "Aucune publicité ciblée, aucun suivi intersites, aucune décision automatisée ni profilage commercial.",
       ] },
-      { title: "4. Destinataires", bullets: [
+      { title: "4. Informations de santé, sources des suggestions et avertissement médical", bullets: [
+        "Ham Ham est un journal familial de diversification alimentaire. Ce n’est pas un dispositif médical et il ne fournit ni diagnostic, ni traitement, ni programme nutritionnel personnalisé, ni service d’urgence. Les suggestions sont générées à partir de l’âge du bébé, des aliments non enregistrés et de repères généraux ; elles ne déterminent pas si un aliment convient à un bébé particulier.",
+        "Les repères d’âge et de préparation sont synthétisés à partir de ressources françaises publiques, notamment Santé publique France / Manger Bouger, l’Assurance Maladie (ameli.fr) et Cuisinez pour bébé. Ces informations peuvent évoluer : référez-vous aux recommandations officielles à jour et aux professionnels de santé.",
+        "Un bébé né à terme et en bonne santé n’a généralement pas besoin d’un avis médical avant chaque aliment, mais la diversification doit être abordée lors du suivi habituel. En cas de prématurité, allergie alimentaire connue, antécédents familiaux d’allergie, régime prescrit ou autre question de santé, demandez l’avis du médecin, du pédiatre ou de la PMI avant de commencer ou d’introduire l’aliment concerné.",
+        "En cas de difficulté respiratoire, gonflement du visage ou de la langue, somnolence marquée ou trouble de la conscience, arrêtez immédiatement et appelez le 15 ou le 112 en France. Ne vous contentez pas d’enregistrer la réaction dans l’application ou d’attendre.",
+      ] },
+      { title: "5. Destinataires", bullets: [
         "Les membres invités et acceptés de la même famille, dans la limite de leurs droits. Cette version prend en charge un bébé par famille.",
-        "Les owner/admin gèrent la famille et les profils bébé ; les règles RLS de la base contrôlent chaque accès.",
+        "Le propriétaire gère la famille et le profil du bébé ; les membres ordinaires peuvent consulter, enregistrer et synchroniser dans la limite de leurs droits. Les règles RLS de la base contrôlent chaque accès.",
         "Supabase fournit l’authentification, la base et le stockage de fichiers ; GitHub Pages héberge uniquement la page publique de la politique de confidentialité.",
         "Aucun autre partage, sauf obligation légale ou nécessité de protéger les utilisateurs.",
       ] },
-      { title: "5. Durées de conservation", bullets: [
+      { title: "6. Durées de conservation", bullets: [
         "Données courantes : pendant la vie du compte ou de la famille ; une suppression demandée efface les données en ligne concernées et les photos associées.",
         "Sauvegarde de migration : migration_backup_20260715, créée le 15/07/2026, est conservée au maximum 30 jours et doit être détruite après vérification le 14/08/2026. Elle n’est pas utilisée par l’application.",
         "Invitations : valables 7 jours ; les invitations expirées, annulées ou acceptées sont conservées au plus 30 jours supplémentaires pour le diagnostic.",
         "Copie hors ligne : reste sur l’appareil jusqu’à synchronisation/remplacement, suppression du compte ou effacement des données de l’app.",
         "Les sauvegardes de reprise et journaux de sécurité du prestataire suivent une rotation restreinte et ne servent pas à restaurer une entrée utilisateur supprimée.",
       ] },
-      { title: "6. Vos droits", bullets: [
+      { title: "7. Vos droits", bullets: [
         "Accès, rectification, effacement, limitation et, lorsque applicable, portabilité.",
         "Modification ou suppression à tout moment des observations alimentaires que vous êtes autorisé à gérer.",
         "Opposition aux traitements fondés sur l’intérêt légitime.",
         "Réclamation auprès de la CNIL si vous estimez que vos données sont mal traitées.",
       ] },
-      { title: "7. Informations concernant le bébé", paragraphs: [
+      { title: "8. Informations concernant le bébé", paragraphs: [
         "Le service est utilisé par les adultes qui s’occupent du bébé et ne permet pas l’inscription autonome des enfants. Limitez les informations au journal alimentaire familial et évitez les détails d’identité inutiles."
       ] },
-      { title: "8. Sécurité", paragraphs: [
+      { title: "9. Sécurité", paragraphs: [
         "Nous utilisons des comptes individuels, l’appartenance familiale, un baby_id obligatoire, les politiques Row Level Security de Supabase et des chemins de stockage privés. Le navigateur ne contient qu’une clé publishable. Aucun service en ligne n’est absolument sûr ; signalez immédiatement tout incident suspect."
       ] },
-      { title: "9. Modifications", paragraphs: [
+      { title: "10. Modifications", paragraphs: [
         "En cas de changement substantiel des finalités, données, destinataires ou durées, nous mettrons à jour la version et la date et recueillerons un nouveau consentement lorsque nécessaire."
       ] },
     ],
@@ -147,32 +159,38 @@ export const privacyPolicies = {
         "Display optional feeding observations: for the family journal only, without diagnosis, risk assessment or medical advice.",
         "No targeted advertising, cross-site tracking, automated decisions or commercial profiling.",
       ] },
-      { title: "4. Who can access the data", bullets: [
+      { title: "4. Health information, suggestion sources and medical disclaimer", bullets: [
+        "Ham Ham is a family complementary-feeding journal. It is not a medical device and does not provide diagnosis, treatment, personalised nutrition plans or emergency care. Suggestions are generated from the baby’s age, foods not yet recorded and general references; they cannot determine whether a food is suitable for an individual baby.",
+        "Age and preparation guidance is summarised from public French resources, including Santé publique France / Manger Bouger, Assurance Maladie (ameli.fr) and Cuisinez pour bébé. Guidance may change; follow current official advice and healthcare professionals.",
+        "A healthy, full-term baby generally does not need medical advice before every food, but complementary feeding should be discussed during routine follow-up. For prematurity, a known food allergy, family allergy history, a prescribed diet or another health concern, consult a doctor, paediatrician or PMI before starting or introducing the relevant food.",
+        "For breathing difficulty, swelling of the face or tongue, marked drowsiness or altered consciousness, stop feeding and call 15 or 112 in France immediately. Do not only record the reaction in the app or wait.",
+      ] },
+      { title: "5. Who can access the data", bullets: [
         "Accepted members of the same family, within their assigned permissions. This version supports one baby per family.",
-        "Family owners/admins manage the family and baby profiles; database RLS rules validate every data access.",
+        "The family owner manages the family and baby profile; ordinary members can view, record and sync within their permissions. Database RLS rules validate every access.",
         "Supabase provides authentication, database and file storage; GitHub Pages hosts only the public privacy-policy page.",
         "No other disclosure unless legally required or needed to protect users.",
       ] },
-      { title: "5. Retention and deletion", bullets: [
+      { title: "6. Retention and deletion", bullets: [
         "Operational data: retained while the account or family remains active; user-requested deletion removes the relevant online data and associated photos.",
         "Migration backup: migration_backup_20260715, created on 15 July 2026, is kept for no more than 30 days and must be destroyed after verification on 14 August 2026. It is not used by the app.",
         "Invitations: valid for 7 days; expired, cancelled or accepted rows are retained for no more than 30 additional days for troubleshooting.",
         "Offline copy: remains on the device until sync/replacement, account deletion, or clearing the app’s data.",
         "Provider disaster-recovery backups and necessary security logs follow a restricted rotation cycle and are not used to restore an individual deleted journal entry.",
       ] },
-      { title: "6. Your rights", bullets: [
+      { title: "7. Your rights", bullets: [
         "Access, correct, erase, restrict and, where applicable, export your data.",
         "Edit or delete feeding observations you are authorised to manage at any time.",
         "Object to processing based on legitimate interests.",
         "Complain to the French CNIL if you believe your data is mishandled.",
       ] },
-      { title: "7. Baby information", paragraphs: [
+      { title: "8. Baby information", paragraphs: [
         "The service is used by adults caring for the baby and does not allow children to register independently. Record only what the family feeding journal needs and avoid unnecessary identity details."
       ] },
-      { title: "8. Security", paragraphs: [
+      { title: "9. Security", paragraphs: [
         "We use individual accounts, family membership, mandatory baby_id ownership, Supabase Row Level Security and private storage paths. The browser contains only a publishable key. No online service is absolutely secure; report any suspected incident immediately."
       ] },
-      { title: "9. Changes", paragraphs: [
+      { title: "10. Changes", paragraphs: [
         "If purposes, data categories, recipients or retention periods change materially, we will update the version and effective date and request fresh consent where required."
       ] },
     ],
