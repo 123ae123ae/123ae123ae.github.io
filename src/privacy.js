@@ -1,5 +1,5 @@
-export const PRIVACY_VERSION = "2026-07-19.1";
-export const PRIVACY_EFFECTIVE_DATE = "2026-07-19";
+export const PRIVACY_VERSION = "2026-07-20.1";
+export const PRIVACY_EFFECTIVE_DATE = "2026-07-20";
 
 export const PRIVACY_CONTROLLER = import.meta.env.VITE_PRIVACY_CONTROLLER || "Ham Ham 独立开发者";
 export const PRIVACY_CONTACT = import.meta.env.VITE_PRIVACY_CONTACT || "wayoolex@gmail.com";
@@ -35,15 +35,14 @@ export const privacyPolicies = {
         "提供可选的喂养观察记录：仅用于家庭日记展示，不进行诊断、风险判断或医疗建议。",
         "我们不进行广告投放、跨站跟踪、自动化决策或商业画像。",
       ] },
-      { title: "4. 健康信息、推荐来源和医疗免责声明", bullets: [
-        "Ham Ham 是家庭辅食记录工具，不是医疗器械，也不提供诊断、治疗、个体化营养方案或紧急医疗服务。食物推荐仅依据宝宝月龄、尚未记录的食物和通用资料自动显示，不能判断某种食物是否适合某个宝宝。",
-        "食物月龄和准备提示依据法国官方资料 Santé publique France / Manger Bouger、Assurance Maladie（ameli.fr）整理，并参考辅助资料 Cuisinez pour bébé。资料可能更新，请以最新官方建议和医护人员意见为准。",
-        "健康足月宝宝通常无需在每一种食物前逐次联系医生；但建议在常规婴儿随访中讨论辅食。早产、已有食物过敏、家庭过敏史、医生规定的特殊饮食或其他健康疑问，应在开始辅食或尝试相关食物前咨询医生、儿科医生或 PMI。",
-        "出现呼吸困难、面部或舌头肿胀、明显嗜睡或意识异常等严重反应时，应立即停止喂食并拨打法国 15 或 112。不要只在 App 中记录或等待。",
+      { title: "4. 健康信息和医疗免责声明", bullets: [
+        "Ham Ham 是家庭辅食记录工具，不是医疗器械，也不提供诊断、治疗、个体化营养方案或紧急医疗服务。首页可能显示尚未记录过的食物作为记录灵感，但不能判断某种食物是否适合某个宝宝。",
+        "食物库中的准备文字仅为一般安全提醒，不构成个性化医疗或营养建议。",
+        "尝试新食物前，如对宝宝的年龄、过敏情况、饮食安排或健康状况有疑问，请咨询医生或其他合格医护人员。App 不能替代专业意见。",
       ] },
       { title: "5. 谁可以看到数据", bullets: [
-        "同一家庭中已接受邀请的成员，只能访问该家庭宝宝的数据。当前版本每个家庭支持一个宝宝。",
-        "家庭拥有者可管理家庭和宝宝资料；普通成员可在其权限范围内查看、记录和同步。具体权限受数据库行级安全策略约束。",
+        "同一家庭中已接受邀请的成员，只能访问该家庭中一个或多个宝宝的数据。",
+        "家庭拥有者可管理家庭、宝宝核心资料、成员和邀请码；普通成员可查看、记录、同步及更新宝宝头像，但不能管理家庭或修改宝宝核心资料。具体权限受数据库行级安全策略约束。",
         "Supabase 提供身份验证、数据库和文件存储；GitHub Pages 仅托管公开的隐私政策网页。它们仅在提供技术服务所需范围内处理数据。",
         "除非法律要求或为了保护用户安全，我们不会把数据提供给其他第三方。",
       ] },
@@ -97,15 +96,14 @@ export const privacyPolicies = {
         "Afficher les observations alimentaires facultatives : uniquement dans le journal familial, sans diagnostic, évaluation des risques ni conseil médical.",
         "Aucune publicité ciblée, aucun suivi intersites, aucune décision automatisée ni profilage commercial.",
       ] },
-      { title: "4. Informations de santé, sources des suggestions et avertissement médical", bullets: [
-        "Ham Ham est un journal familial de diversification alimentaire. Ce n’est pas un dispositif médical et il ne fournit ni diagnostic, ni traitement, ni programme nutritionnel personnalisé, ni service d’urgence. Les suggestions sont générées à partir de l’âge du bébé, des aliments non enregistrés et de repères généraux ; elles ne déterminent pas si un aliment convient à un bébé particulier.",
-        "Les repères d’âge et de préparation sont synthétisés à partir des recommandations officielles de Santé publique France / Manger Bouger et de l’Assurance Maladie (ameli.fr), avec Cuisinez pour bébé comme source secondaire. Ces informations peuvent évoluer : référez-vous aux recommandations officielles à jour et aux professionnels de santé.",
-        "Un bébé né à terme et en bonne santé n’a généralement pas besoin d’un avis médical avant chaque aliment, mais la diversification doit être abordée lors du suivi habituel. En cas de prématurité, allergie alimentaire connue, antécédents familiaux d’allergie, régime prescrit ou autre question de santé, demandez l’avis du médecin, du pédiatre ou de la PMI avant de commencer ou d’introduire l’aliment concerné.",
-        "En cas de difficulté respiratoire, gonflement du visage ou de la langue, somnolence marquée ou trouble de la conscience, arrêtez immédiatement et appelez le 15 ou le 112 en France. Ne vous contentez pas d’enregistrer la réaction dans l’application ou d’attendre.",
+      { title: "4. Informations de santé et avertissement médical", bullets: [
+        "Ham Ham est un journal familial de diversification alimentaire. Ce n’est pas un dispositif médical et il ne fournit ni diagnostic, ni traitement, ni programme nutritionnel personnalisé, ni service d’urgence. L’accueil peut afficher un aliment qui n’a pas encore été enregistré comme simple idée de journal ; cela ne détermine pas si cet aliment convient à un bébé particulier.",
+        "Les textes de préparation de la bibliothèque sont de simples rappels généraux de sécurité et ne constituent pas un avis médical ou nutritionnel personnalisé.",
+        "Avant d’introduire un nouvel aliment, demandez l’avis d’un médecin ou d’un autre professionnel de santé qualifié si vous avez un doute sur l’âge, les allergies, l’alimentation ou la santé du bébé. L’application ne remplace pas un avis professionnel.",
       ] },
       { title: "5. Destinataires", bullets: [
-        "Les membres invités et acceptés de la même famille, dans la limite de leurs droits. Cette version prend en charge un bébé par famille.",
-        "Le propriétaire gère la famille et le profil du bébé ; les membres ordinaires peuvent consulter, enregistrer et synchroniser dans la limite de leurs droits. Les règles RLS de la base contrôlent chaque accès.",
+        "Les membres invités et acceptés de la même famille peuvent accéder aux données d’un ou plusieurs bébés de cette famille, dans la limite de leurs droits.",
+        "Le propriétaire gère la famille, les profils principaux des bébés, les membres et les invitations. Les membres ordinaires peuvent consulter, enregistrer, synchroniser et modifier l’avatar du bébé, sans pouvoir gérer la famille ni modifier le profil principal. Les règles RLS de la base contrôlent chaque accès.",
         "Supabase fournit l’authentification, la base et le stockage de fichiers ; GitHub Pages héberge uniquement la page publique de la politique de confidentialité.",
         "Aucun autre partage, sauf obligation légale ou nécessité de protéger les utilisateurs.",
       ] },
@@ -159,15 +157,14 @@ export const privacyPolicies = {
         "Display optional feeding observations: for the family journal only, without diagnosis, risk assessment or medical advice.",
         "No targeted advertising, cross-site tracking, automated decisions or commercial profiling.",
       ] },
-      { title: "4. Health information, suggestion sources and medical disclaimer", bullets: [
-        "Ham Ham is a family complementary-feeding journal. It is not a medical device and does not provide diagnosis, treatment, personalised nutrition plans or emergency care. Suggestions are generated from the baby’s age, foods not yet recorded and general references; they cannot determine whether a food is suitable for an individual baby.",
-        "Age and preparation guidance is summarised from official recommendations by Santé publique France / Manger Bouger and Assurance Maladie (ameli.fr), with Cuisinez pour bébé used as a secondary reference. Guidance may change; follow current official advice and healthcare professionals.",
-        "A healthy, full-term baby generally does not need medical advice before every food, but complementary feeding should be discussed during routine follow-up. For prematurity, a known food allergy, family allergy history, a prescribed diet or another health concern, consult a doctor, paediatrician or PMI before starting or introducing the relevant food.",
-        "For breathing difficulty, swelling of the face or tongue, marked drowsiness or altered consciousness, stop feeding and call 15 or 112 in France immediately. Do not only record the reaction in the app or wait.",
+      { title: "4. Health information and medical disclaimer", bullets: [
+        "Ham Ham is a family complementary-feeding journal. It is not a medical device and does not provide diagnosis, treatment, personalised nutrition plans or emergency care. The home screen may show a food that has not yet been logged as a simple journal idea; it cannot determine whether that food is suitable for an individual baby.",
+        "Preparation text in the food library is a general safety reminder and does not constitute personalised medical or nutrition advice.",
+        "Before introducing a new food, consult a doctor or another qualified healthcare professional if you have concerns about the baby’s age, allergies, diet or health. The app does not replace professional advice.",
       ] },
       { title: "5. Who can access the data", bullets: [
-        "Accepted members of the same family, within their assigned permissions. This version supports one baby per family.",
-        "The family owner manages the family and baby profile; ordinary members can view, record and sync within their permissions. Database RLS rules validate every access.",
+        "Accepted members of the same family can access the data of one or more babies in that family, within their assigned permissions.",
+        "The owner manages the family, core baby profiles, members and invitations. Ordinary members can view, record, sync and update a baby avatar, but cannot manage the family or edit the core baby profile. Database RLS rules validate every access.",
         "Supabase provides authentication, database and file storage; GitHub Pages hosts only the public privacy-policy page.",
         "No other disclosure unless legally required or needed to protect users.",
       ] },

@@ -1,14 +1,16 @@
 import React from "react";
 import { createRoot } from "react-dom/client";
-import { App } from "./App.jsx";
+import { PrivacyOnlyApp } from "./PrivacyOnlyApp.jsx";
 import "./styles.css";
 
 if ("serviceWorker" in navigator) {
-  window.addEventListener("load", () => navigator.serviceWorker.register("/sw-v28.js", { updateViaCache: "none" }));
+  window.addEventListener("load", () => navigator.serviceWorker.getRegistrations()
+    .then(registrations => Promise.all(registrations.map(registration => registration.unregister()))));
 }
+if ("caches" in window) caches.keys().then(keys => Promise.all(keys.map(key => caches.delete(key))));
 
 createRoot(document.getElementById("root")).render(
   <React.StrictMode>
-    <App />
+    <PrivacyOnlyApp />
   </React.StrictMode>,
 );

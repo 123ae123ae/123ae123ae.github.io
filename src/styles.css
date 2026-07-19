@@ -321,6 +321,24 @@
 .privacy-scroll section{padding:15px 2px;border-top:1px solid var(--line)}.privacy-scroll h3{margin:0 0 8px;font-size:14px}.privacy-scroll p,.privacy-scroll li{font-size:10.5px;line-height:1.72;color:#625f59}.privacy-scroll p{margin:7px 0}.privacy-scroll ul{margin:0;padding-left:19px}.privacy-scroll li+li{margin-top:5px}.privacy-scroll a{display:inline-block;margin-top:8px;color:var(--sage);font-size:10px;font-weight:700}
 @media(max-width:430px){.privacy-sheet{inset:auto 0 0;width:100%;height:calc(100dvh - max(10px,env(safe-area-inset-top)));border-radius:22px 22px 0 0;padding:18px 17px calc(14px + env(safe-area-inset-bottom))}.privacy-head h2{font-size:20px}}
 
+/* The public website is intentionally limited to the App Store privacy policy. */
+.privacy-page{min-height:100dvh;background:#f7f4ed;padding:32px 16px;color:#30312d}
+.privacy-card{width:min(760px,100%);margin:0 auto;background:#fffdf8;border:1px solid #dfddd6;border-radius:24px;padding:clamp(22px,5vw,44px);box-shadow:0 18px 60px rgba(38,38,34,.08)}
+.privacy-page-head{display:flex;align-items:flex-start;justify-content:space-between;gap:24px;flex-wrap:wrap}
+.privacy-page-head h1{margin:2px 0 7px;font-size:clamp(28px,5vw,42px)}
+.privacy-page-head p{margin:0;color:#77736d;font-size:13px}
+.privacy-brand{color:#71836c!important;font-size:15px!important;font-weight:800;letter-spacing:.08em;text-transform:uppercase}
+.privacy-page .privacy-language{margin:0}
+.privacy-page .privacy-summary{display:block;margin:28px 0 8px;font-size:15px}
+.privacy-page-content section{padding:22px 0;border-top:1px solid #e5e2db}
+.privacy-page-content h2{margin:0 0 10px;font-size:18px}
+.privacy-page-content p,.privacy-page-content li{color:#5f5c56;font-size:14px;line-height:1.75}
+.privacy-page-content ul{margin:0;padding-left:21px}
+.privacy-page-content li+li{margin-top:7px}
+.privacy-links{display:flex;gap:18px;flex-wrap:wrap}
+.privacy-links a{color:#64775f;font-weight:700}
+@media(max-width:560px){.privacy-page{padding:0}.privacy-card{min-height:100dvh;border:0;border-radius:0;box-shadow:none;padding:24px 18px}.privacy-page .privacy-language{width:100%;overflow-x:auto}}
+
 /* ---------- 家庭邀请码 ---------- */
 .join-code-card{margin-top:18px;padding:15px;border:1px solid #d9e2d5;border-radius:16px;background:var(--sage-soft);display:grid;gap:10px;text-align:left}
 .join-code-card input{height:46px!important;margin:0!important;text-align:center;text-transform:uppercase;letter-spacing:.12em;font-weight:750;font-variant-numeric:tabular-nums}

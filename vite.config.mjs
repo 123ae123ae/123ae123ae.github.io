@@ -3,6 +3,9 @@ import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 
 export default defineConfig({
+  build: {
+    copyPublicDir: false,
+  },
   optimizeDeps: {
     include: ["react", "react-dom/client"],
   },
