@@ -337,6 +337,19 @@
 .privacy-page-content li+li{margin-top:7px}
 .privacy-links{display:flex;gap:18px;flex-wrap:wrap}
 .privacy-links a{color:#64775f;font-weight:700}
+.auth-confirm-page{display:grid;place-items:center}
+.auth-confirm-card{max-width:560px;text-align:center}
+.auth-confirm-card .privacy-language{justify-content:center;margin:0 0 34px}
+.auth-confirm-mark{display:grid;place-items:center;width:76px;height:76px;margin:0 auto 22px;border-radius:50%;font-size:38px;font-weight:800}
+.auth-confirm-mark.success{background:#eaf1e6;color:#64775f}
+.auth-confirm-mark.error{background:#fff0e8;color:#bd6447}
+.auth-confirm-card h1{margin:8px 0 14px;font-size:clamp(28px,6vw,40px)}
+.auth-confirm-body{max-width:460px;margin:0 auto;color:#5f5c56;font-size:15px;line-height:1.75}
+.auth-confirm-primary{display:flex;align-items:center;justify-content:center;width:min(100%,340px);height:54px;margin:28px auto 12px;border-radius:16px;background:#71836c;color:#fff;text-decoration:none;font-size:15px;font-weight:750}
+.auth-confirm-primary:hover{background:#64775f}
+.auth-confirm-fallback{margin:0;color:#8a867f;font-size:12px}
+.auth-confirm-links{display:flex;justify-content:center;gap:18px;flex-wrap:wrap;margin-top:30px;padding-top:22px;border-top:1px solid #e5e2db}
+.auth-confirm-links a{color:#64775f;font-size:12px;font-weight:700}
 @media(max-width:560px){.privacy-page{padding:0}.privacy-card{min-height:100dvh;border:0;border-radius:0;box-shadow:none;padding:24px 18px}.privacy-page .privacy-language{width:100%;overflow-x:auto}}
 
 /* ---------- 家庭邀请码 ---------- */
