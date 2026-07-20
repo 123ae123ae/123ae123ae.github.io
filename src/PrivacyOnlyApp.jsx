@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import {
   policyLocale,
   privacyPolicies,
+  PRIVACY_CONTACT,
   PRIVACY_EFFECTIVE_DATE,
   PRIVACY_VERSION,
 } from "./privacy.js";
@@ -42,7 +43,7 @@ export function PrivacyOnlyApp() {
             </section>
           ))}
           <p className="privacy-links">
-            <a href="mailto:wayoolex@gmail.com">wayoolex@gmail.com</a>
+            <a href={`mailto:${PRIVACY_CONTACT}`}>{PRIVACY_CONTACT}</a>
             <a href={policy.cnilUrl} target="_blank" rel="noreferrer">CNIL</a>
           </p>
         </div>

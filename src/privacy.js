@@ -1,8 +1,12 @@
 export const PRIVACY_VERSION = "2026-07-20.1";
 export const PRIVACY_EFFECTIVE_DATE = "2026-07-20";
 
-export const PRIVACY_CONTROLLER = import.meta.env.VITE_PRIVACY_CONTROLLER || "Ham Ham 独立开发者";
-export const PRIVACY_CONTACT = import.meta.env.VITE_PRIVACY_CONTACT || "wayoolex@gmail.com";
+const PRIVACY_CONTROLLERS = {
+  "zh-CN": import.meta.env.VITE_PRIVACY_CONTROLLER_ZH || "Ham Ham 独立开发者",
+  fr: import.meta.env.VITE_PRIVACY_CONTROLLER_FR || "le développeur indépendant de Ham Ham",
+  en: import.meta.env.VITE_PRIVACY_CONTROLLER_EN || "the independent developer of Ham Ham",
+};
+export const PRIVACY_CONTACT = import.meta.env.VITE_PRIVACY_CONTACT || "uzumstudio.dev@gmail.com";
 
 const common = {
   cnilUrl: "https://www.cnil.fr/fr/plaintes",
@@ -18,7 +22,7 @@ export const privacyPolicies = {
     version: "版本",
     sections: [
       { title: "1. 数据负责人和联系", paragraphs: [
-        `数据负责人：${PRIVACY_CONTROLLER}。`,
+        `数据负责人：${PRIVACY_CONTROLLERS["zh-CN"]}。`,
         `隐私联系：${PRIVACY_CONTACT}。你可以通过该联系方式提出访问、更正、导出或删除请求。`,
       ] },
       { title: "2. 我们处理哪些数据", bullets: [
@@ -79,7 +83,7 @@ export const privacyPolicies = {
     version: "Version",
     sections: [
       { title: "1. Responsable du traitement et contact", paragraphs: [
-        `Responsable du traitement : ${PRIVACY_CONTROLLER}.`,
+        `Responsable du traitement : ${PRIVACY_CONTROLLERS.fr}.`,
         `Contact vie privée : ${PRIVACY_CONTACT}. Vous pouvez utiliser ce contact pour demander l’accès, la rectification, l’export ou l’effacement.`,
       ] },
       { title: "2. Données traitées", bullets: [
@@ -140,7 +144,7 @@ export const privacyPolicies = {
     version: "Version",
     sections: [
       { title: "1. Controller and contact", paragraphs: [
-        `Data controller: ${PRIVACY_CONTROLLER}.`,
+        `Data controller: ${PRIVACY_CONTROLLERS.en}.`,
         `Privacy contact: ${PRIVACY_CONTACT}. Use this contact to request access, correction, export or deletion.`,
       ] },
       { title: "2. Data we process", bullets: [
