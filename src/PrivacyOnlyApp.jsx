@@ -7,6 +7,7 @@ import {
   PRIVACY_VERSION,
 } from "./privacy.js";
 import { confirmationCopy, confirmationStatusFromLocation } from "./authConfirmation.js";
+import { recoveryConfirmationUrlFromLocation, recoveryCopy } from "./authRecovery.js";
 import { pageForPath, SITE_ROUTES } from "./siteRoutes.js";
 
 const initialLocale = () => policyLocale(navigator.language?.toLowerCase().startsWith("fr")
@@ -110,6 +111,34 @@ function ConfirmationPage({ locale, setLocale, status }) {
   );
 }
 
+function RecoveryPage({ locale, setLocale, confirmationUrl }) {
+  const copy = recoveryCopy[locale];
+  const valid = Boolean(confirmationUrl);
+  return (
+    <main className="privacy-page auth-confirm-page">
+      <article className="privacy-card auth-confirm-card">
+        <LanguagePicker locale={locale} setLocale={setLocale} label="Password reset language" />
+        <p className="privacy-brand">Ham Ham</p>
+        <div className={`auth-confirm-mark ${valid ? "success" : "error"}`} aria-hidden="true">
+          {valid ? "↻" : "!"}
+        </div>
+        <h1>{valid ? copy.title : copy.invalidTitle}</h1>
+        <p className="auth-confirm-body">{valid ? copy.body : copy.invalidBody}</p>
+        <a
+          className="auth-confirm-primary"
+          href={valid ? confirmationUrl : "babyfood://"}
+          rel="noreferrer"
+        >
+          {valid ? copy.continue : copy.returnToApp}
+        </a>
+        <div className="auth-confirm-links">
+          <a href={SITE_ROUTES.privacy}>{copy.privacy}</a>
+        </div>
+      </article>
+    </main>
+  );
+}
+
 function PrivacyPage({ locale, setLocale }) {
   const policy = privacyPolicies[locale];
   return (
@@ -172,6 +201,9 @@ export function PrivacyOnlyApp() {
       ? confirmationStatusFromLocation(window.location.search, window.location.hash) || "error"
       : null
   ));
+  const [recoveryConfirmationUrl] = useState(() => (
+    page === "recovery" ? recoveryConfirmationUrlFromLocation(window.location.search) : null
+  ));
 
   useEffect(() => {
     if (page !== "confirmation" || !confirmationStatus) return;
@@ -180,14 +212,22 @@ export function PrivacyOnlyApp() {
   }, [confirmationStatus, page]);
 
   useEffect(() => {
+    if (page !== "recovery") return;
+    window.history.replaceState(null, "", SITE_ROUTES.recovery);
+  }, [page]);
+
+  useEffect(() => {
     if (page === "confirmation") {
       document.title = `Ham Ham · ${confirmationStatus === "success" ? confirmationCopy[locale].successTitle : confirmationCopy[locale].errorTitle}`;
+    } else if (page === "recovery") {
+      document.title = `Ham Ham · ${recoveryConfirmationUrl ? recoveryCopy[locale].title : recoveryCopy[locale].invalidTitle}`;
     } else if (page === "privacy") document.title = "Ham Ham · Privacy Policy";
     else if (page === "support") document.title = "Ham Ham · Support";
     else document.title = "Uzum Studio";
-  }, [confirmationStatus, locale, page]);
+  }, [confirmationStatus, locale, page, recoveryConfirmationUrl]);
 
   if (page === "confirmation") return <ConfirmationPage locale={locale} setLocale={setLocale} status={confirmationStatus} />;
+  if (page === "recovery") return <RecoveryPage locale={locale} setLocale={setLocale} confirmationUrl={recoveryConfirmationUrl} />;
   if (page === "privacy") return <PrivacyPage locale={locale} setLocale={setLocale} />;
   if (page === "support") return <SupportPage locale={locale} setLocale={setLocale} />;
   return <HomePage locale={locale} setLocale={setLocale} />;

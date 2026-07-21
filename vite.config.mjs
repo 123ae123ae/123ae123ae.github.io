@@ -10,6 +10,7 @@ export default defineConfig({
         "index.html",
         "hamham/privacy/index.html",
         "hamham/auth/confirm/index.html",
+        "hamham/auth/recovery/index.html",
         "hamham/support/index.html",
       ],
     },
