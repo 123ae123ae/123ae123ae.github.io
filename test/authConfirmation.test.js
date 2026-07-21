@@ -96,6 +96,13 @@ test("password update reports success and handles Supabase failures", async () =
   assert.equal(await updateWebRecoveryPassword("new-password", async () => { throw new Error("offline"); }), "error");
 });
 
+test("reusing the current password is reported separately from link errors", async () => {
+  assert.equal(await updateWebRecoveryPassword("old-password", async () => ({ error: { code: "same_password" } })), "same");
+  assert.equal(await updateWebRecoveryPassword("old-password", async () => ({
+    error: { message: "New password should be different from the old password." },
+  })), "same");
+});
+
 test("password recovery gateway copy is complete in all supported languages", () => {
   for (const locale of ["zh-CN", "fr", "en"]) {
     assert.ok(recoveryCopy[locale].gatewayTitle);
@@ -104,5 +111,6 @@ test("password recovery gateway copy is complete in all supported languages", ()
     assert.ok(recoveryCopy[locale].openApp);
     assert.ok(recoveryCopy[locale].manualReturn);
     assert.ok(recoveryCopy[locale].invalidTitle);
+    assert.ok(recoveryCopy[locale].samePassword);
   }
 });

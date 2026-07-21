@@ -79,10 +79,14 @@ export const prepareWebRecoverySession = (credentials, setSession) => {
   return promise;
 };
 
+const isSamePasswordError = error => error?.code === "same_password"
+  || /different from the old password/i.test(error?.message || "");
+
 export const updateWebRecoveryPassword = async (password, updateUser) => {
   try {
     const { error } = await updateUser({ password });
-    return error ? "error" : "success";
+    if (!error) return "success";
+    return isSamePasswordError(error) ? "same" : "error";
   } catch {
     return "error";
   }
@@ -109,6 +113,7 @@ export const recoveryCopy = {
     mismatch: "两次输入的密码不一致。",
     tooShort: "密码至少需要 8 位。",
     updateError: "密码修改失败，请重新打开最新收到的重置邮件链接。",
+    samePassword: "新密码不能与当前密码相同，请换一个不同的密码。",
     save: "保存新密码",
     saving: "正在保存…",
     successTitle: "密码重置成功",
@@ -136,6 +141,7 @@ export const recoveryCopy = {
     mismatch: "Les deux mots de passe ne correspondent pas.",
     tooShort: "Le mot de passe doit contenir au moins 8 caractères.",
     updateError: "Impossible de modifier le mot de passe. Ouvrez le lien de l’e-mail de réinitialisation le plus récent.",
+    samePassword: "Le nouveau mot de passe doit être différent du mot de passe actuel.",
     save: "Enregistrer le nouveau mot de passe",
     saving: "Enregistrement…",
     successTitle: "Mot de passe réinitialisé",
@@ -163,6 +169,7 @@ export const recoveryCopy = {
     mismatch: "The passwords do not match.",
     tooShort: "The password must contain at least 8 characters.",
     updateError: "Could not update the password. Open the link in the most recent reset email.",
+    samePassword: "The new password must be different from your current password.",
     save: "Save new password",
     saving: "Saving…",
     successTitle: "Password reset successful",

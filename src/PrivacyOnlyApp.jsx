@@ -168,9 +168,9 @@ function RecoveryPage({ locale, setLocale, confirmationUrl, credentials, recover
       password,
       attributes => recoverySupabase.auth.updateUser(attributes),
     );
-    if (nextStatus === "error") {
+    if (nextStatus !== "success") {
       setStatus("ready");
-      setMessage(copy.updateError);
+      setMessage(nextStatus === "same" ? copy.samePassword : copy.updateError);
       return;
     }
 
