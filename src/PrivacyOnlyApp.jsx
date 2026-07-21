@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react";
+import { createClient } from "@supabase/supabase-js";
 import {
   policyLocale,
   privacyPolicies,
@@ -7,8 +8,25 @@ import {
   PRIVACY_VERSION,
 } from "./privacy.js";
 import { confirmationCopy, confirmationStatusFromLocation } from "./authConfirmation.js";
-import { recoveryConfirmationUrlFromLocation, recoveryCopy } from "./authRecovery.js";
+import {
+  prepareWebRecoverySession,
+  recoveryConfirmationUrlFromLocation,
+  recoveryCopy,
+  recoveryCredentialsFromLocation,
+  recoveryErrorFromLocation,
+  SUPABASE_PUBLISHABLE_KEY,
+  SUPABASE_URL,
+  updateWebRecoveryPassword,
+} from "./authRecovery.js";
 import { pageForPath, SITE_ROUTES } from "./siteRoutes.js";
+
+const recoverySupabase = createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
+  auth: {
+    autoRefreshToken: false,
+    detectSessionInUrl: false,
+    persistSession: false,
+  },
+});
 
 const initialLocale = () => policyLocale(navigator.language?.toLowerCase().startsWith("fr")
   ? "fr"
@@ -111,26 +129,133 @@ function ConfirmationPage({ locale, setLocale, status }) {
   );
 }
 
-function RecoveryPage({ locale, setLocale, confirmationUrl }) {
+function RecoveryPage({ locale, setLocale, confirmationUrl, credentials, recoveryError }) {
   const copy = recoveryCopy[locale];
-  const valid = Boolean(confirmationUrl);
+  const [status, setStatus] = useState(() => (
+    confirmationUrl ? "gateway" : credentials && !recoveryError ? "verifying" : "error"
+  ));
+  const [password, setPassword] = useState("");
+  const [confirmation, setConfirmation] = useState("");
+  const [passwordVisible, setPasswordVisible] = useState(false);
+  const [message, setMessage] = useState("");
+
+  useEffect(() => {
+    if (status !== "verifying" || !credentials) return;
+    let active = true;
+    prepareWebRecoverySession(
+      credentials,
+      session => recoverySupabase.auth.setSession(session),
+    ).then(nextStatus => {
+      if (active) setStatus(nextStatus);
+    });
+    return () => { active = false; };
+  }, [credentials, status]);
+
+  const savePassword = async event => {
+    event.preventDefault();
+    setMessage("");
+    if (password.length < 8) {
+      setMessage(copy.tooShort);
+      return;
+    }
+    if (password !== confirmation) {
+      setMessage(copy.mismatch);
+      return;
+    }
+
+    setStatus("saving");
+    const nextStatus = await updateWebRecoveryPassword(
+      password,
+      attributes => recoverySupabase.auth.updateUser(attributes),
+    );
+    if (nextStatus === "error") {
+      setStatus("ready");
+      setMessage(copy.updateError);
+      return;
+    }
+
+    setPassword("");
+    setConfirmation("");
+    setStatus("success");
+    void recoverySupabase.auth.signOut({ scope: "local" }).catch(() => undefined);
+  };
+
+  const title = status === "gateway" ? copy.gatewayTitle
+    : status === "verifying" ? copy.verifyingTitle
+      : status === "ready" || status === "saving" ? copy.formTitle
+        : status === "success" ? copy.successTitle : copy.invalidTitle;
+  const body = status === "gateway" ? copy.gatewayBody
+    : status === "verifying" ? copy.verifyingBody
+      : status === "ready" || status === "saving" ? copy.formBody
+        : status === "success" ? copy.successBody : copy.invalidBody;
+  const successful = status === "success";
+  const invalid = status === "error";
+
   return (
     <main className="privacy-page auth-confirm-page">
       <article className="privacy-card auth-confirm-card">
         <LanguagePicker locale={locale} setLocale={setLocale} label="Password reset language" />
         <p className="privacy-brand">Ham Ham</p>
-        <div className={`auth-confirm-mark ${valid ? "success" : "error"}`} aria-hidden="true">
-          {valid ? "↻" : "!"}
+        <div className={`auth-confirm-mark ${successful ? "success" : invalid ? "error" : ""}`} aria-hidden="true">
+          {successful ? "✓" : invalid ? "!" : "↻"}
         </div>
-        <h1>{valid ? copy.title : copy.invalidTitle}</h1>
-        <p className="auth-confirm-body">{valid ? copy.body : copy.invalidBody}</p>
-        <a
-          className="auth-confirm-primary"
-          href={valid ? confirmationUrl : "babyfood://"}
-          rel="noreferrer"
-        >
-          {valid ? copy.continue : copy.returnToApp}
-        </a>
+        <h1>{title}</h1>
+        <p className="auth-confirm-body">{body}</p>
+
+        {status === "gateway" && (
+          <a className="auth-confirm-primary" href={confirmationUrl} rel="noreferrer">
+            {copy.continue}
+          </a>
+        )}
+
+        {(status === "ready" || status === "saving") && (
+          <form className="auth-recovery-form" onSubmit={savePassword}>
+            <label htmlFor="recovery-password">{copy.password}</label>
+            <div className="auth-recovery-field">
+              <input
+                id="recovery-password"
+                type={passwordVisible ? "text" : "password"}
+                value={password}
+                onChange={event => setPassword(event.target.value)}
+                placeholder={copy.placeholder}
+                autoComplete="new-password"
+                minLength={8}
+                disabled={status === "saving"}
+                required
+              />
+              <button type="button" onClick={() => setPasswordVisible(value => !value)}>
+                {passwordVisible ? copy.hide : copy.show}
+              </button>
+            </div>
+            <label htmlFor="recovery-confirmation">{copy.confirmation}</label>
+            <input
+              id="recovery-confirmation"
+              type={passwordVisible ? "text" : "password"}
+              value={confirmation}
+              onChange={event => setConfirmation(event.target.value)}
+              placeholder={copy.placeholder}
+              autoComplete="new-password"
+              minLength={8}
+              disabled={status === "saving"}
+              required
+            />
+            {message && <p className="auth-recovery-message" role="alert">{message}</p>}
+            <button className="auth-confirm-primary" type="submit" disabled={status === "saving"}>
+              {status === "saving" ? copy.saving : copy.save}
+            </button>
+          </form>
+        )}
+
+        {successful && <>
+          <a className="auth-confirm-primary" href="babyfood://">{copy.openApp}</a>
+          <p className="auth-confirm-fallback">{copy.manualReturn}</p>
+        </>}
+
+        {invalid && <>
+          <a className="auth-confirm-primary" href="babyfood://">{copy.returnToApp}</a>
+          <p className="auth-confirm-fallback">{copy.manualReturn}</p>
+        </>}
+
         <div className="auth-confirm-links">
           <a href={SITE_ROUTES.privacy}>{copy.privacy}</a>
         </div>
@@ -204,6 +329,12 @@ export function PrivacyOnlyApp() {
   const [recoveryConfirmationUrl] = useState(() => (
     page === "recovery" ? recoveryConfirmationUrlFromLocation(window.location.search) : null
   ));
+  const [recoveryCredentials] = useState(() => (
+    page === "recovery" ? recoveryCredentialsFromLocation(window.location.search, window.location.hash) : null
+  ));
+  const [recoveryError] = useState(() => (
+    page === "recovery" ? recoveryErrorFromLocation(window.location.search, window.location.hash) : null
+  ));
 
   useEffect(() => {
     if (page !== "confirmation" || !confirmationStatus) return;
@@ -220,14 +351,22 @@ export function PrivacyOnlyApp() {
     if (page === "confirmation") {
       document.title = `Ham Ham · ${confirmationStatus === "success" ? confirmationCopy[locale].successTitle : confirmationCopy[locale].errorTitle}`;
     } else if (page === "recovery") {
-      document.title = `Ham Ham · ${recoveryConfirmationUrl ? recoveryCopy[locale].title : recoveryCopy[locale].invalidTitle}`;
+      document.title = `Ham Ham · ${recoveryCopy[locale].gatewayTitle}`;
     } else if (page === "privacy") document.title = "Ham Ham · Privacy Policy";
     else if (page === "support") document.title = "Ham Ham · Support";
     else document.title = "Uzum Studio";
   }, [confirmationStatus, locale, page, recoveryConfirmationUrl]);
 
   if (page === "confirmation") return <ConfirmationPage locale={locale} setLocale={setLocale} status={confirmationStatus} />;
-  if (page === "recovery") return <RecoveryPage locale={locale} setLocale={setLocale} confirmationUrl={recoveryConfirmationUrl} />;
+  if (page === "recovery") return (
+    <RecoveryPage
+      locale={locale}
+      setLocale={setLocale}
+      confirmationUrl={recoveryConfirmationUrl}
+      credentials={recoveryCredentials}
+      recoveryError={recoveryError}
+    />
+  );
   if (page === "privacy") return <PrivacyPage locale={locale} setLocale={setLocale} />;
   if (page === "support") return <SupportPage locale={locale} setLocale={setLocale} />;
   return <HomePage locale={locale} setLocale={setLocale} />;
