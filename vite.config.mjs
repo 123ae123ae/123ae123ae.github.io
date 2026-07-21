@@ -5,6 +5,14 @@ import tailwindcss from "@tailwindcss/vite";
 export default defineConfig({
   build: {
     copyPublicDir: false,
+    rollupOptions: {
+      input: [
+        "index.html",
+        "hamham/privacy/index.html",
+        "hamham/auth/confirm/index.html",
+        "hamham/support/index.html",
+      ],
+    },
   },
   optimizeDeps: {
     include: ["react", "react-dom/client"],

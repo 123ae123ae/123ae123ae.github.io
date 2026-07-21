@@ -321,7 +321,17 @@
 .privacy-scroll section{padding:15px 2px;border-top:1px solid var(--line)}.privacy-scroll h3{margin:0 0 8px;font-size:14px}.privacy-scroll p,.privacy-scroll li{font-size:10.5px;line-height:1.72;color:#625f59}.privacy-scroll p{margin:7px 0}.privacy-scroll ul{margin:0;padding-left:19px}.privacy-scroll li+li{margin-top:5px}.privacy-scroll a{display:inline-block;margin-top:8px;color:var(--sage);font-size:10px;font-weight:700}
 @media(max-width:430px){.privacy-sheet{inset:auto 0 0;width:100%;height:calc(100dvh - max(10px,env(safe-area-inset-top)));border-radius:22px 22px 0 0;padding:18px 17px calc(14px + env(safe-area-inset-bottom))}.privacy-head h2{font-size:20px}}
 
-/* The public website is intentionally limited to the App Store privacy policy. */
+/* ---------- Uzum Studio public site ---------- */
+.studio-page{min-height:100dvh;display:grid;place-items:center;padding:28px 16px;background:radial-gradient(circle at 50% 0,#fffdf8 0,#f4f1e8 58%,#eaf0e6 100%);color:#30312d}
+.studio-hero{width:min(760px,100%);padding:clamp(28px,7vw,68px);border:1px solid rgba(207,205,196,.9);border-radius:30px;background:rgba(255,253,248,.92);box-shadow:0 24px 90px rgba(45,49,42,.1)}
+.studio-hero>.privacy-language{justify-content:flex-end;margin:0 0 46px}
+.studio-kicker{margin:0;color:#71836c;font-size:12px;font-weight:800;letter-spacing:.16em}
+.studio-hero>h1{margin:8px 0 12px;font-size:clamp(42px,9vw,72px);line-height:.98;letter-spacing:-.045em}
+.studio-tagline{max-width:540px;margin:0;color:#68655f;font-size:clamp(16px,3vw,21px);line-height:1.65}
+.studio-app-card{display:grid;grid-template-columns:70px 1fr;gap:18px;margin-top:48px;padding:22px;border:1px solid #dbe2d7;border-radius:22px;background:linear-gradient(135deg,#f3f7ef,#fffaf4)}
+.studio-app-mark{grid-row:1/3;width:70px;height:70px;border-radius:21px;background:#71836c;color:#fff;display:grid;place-items:center;font-size:28px;font-weight:800;box-shadow:0 10px 26px rgba(87,104,80,.22)}
+.studio-app-card h2{margin:2px 0 7px;font-size:25px}.studio-app-card p{margin:0;color:#6c6963;line-height:1.6}.studio-app-card .privacy-brand{font-size:10px!important}
+.studio-app-card nav{grid-column:2;display:flex;gap:9px;flex-wrap:wrap;margin-top:5px}.studio-app-card nav a{padding:10px 14px;border:1px solid #ccd6c8;border-radius:12px;background:#fff;color:#64775f;text-decoration:none;font-size:12px;font-weight:700}
 .privacy-page{min-height:100dvh;background:#f7f4ed;padding:32px 16px;color:#30312d}
 .privacy-card{width:min(760px,100%);margin:0 auto;background:#fffdf8;border:1px solid #dfddd6;border-radius:24px;padding:clamp(22px,5vw,44px);box-shadow:0 18px 60px rgba(38,38,34,.08)}
 .privacy-page-head{display:flex;align-items:flex-start;justify-content:space-between;gap:24px;flex-wrap:wrap}
@@ -350,7 +360,8 @@
 .auth-confirm-fallback{margin:0;color:#8a867f;font-size:12px}
 .auth-confirm-links{display:flex;justify-content:center;gap:18px;flex-wrap:wrap;margin-top:30px;padding-top:22px;border-top:1px solid #e5e2db}
 .auth-confirm-links a{color:#64775f;font-size:12px;font-weight:700}
-@media(max-width:560px){.privacy-page{padding:0}.privacy-card{min-height:100dvh;border:0;border-radius:0;box-shadow:none;padding:24px 18px}.privacy-page .privacy-language{width:100%;overflow-x:auto}}
+.support-page{display:grid;place-items:center}.support-card{max-width:620px}.support-card>.privacy-language{justify-content:flex-end;margin:0 0 30px}.support-card h1{margin:8px 0 18px;font-size:clamp(28px,6vw,40px)}.support-card>p{color:#5f5c56;font-size:15px;line-height:1.75}.support-email{text-align:center;font-size:12px!important;color:#77736d!important}
+@media(max-width:560px){.studio-page,.privacy-page{padding:0}.studio-hero,.privacy-card{min-height:100dvh;border:0;border-radius:0;box-shadow:none;padding:24px 18px}.studio-app-card{grid-template-columns:55px 1fr;padding:17px}.studio-app-mark{width:55px;height:55px;border-radius:17px}.studio-hero>.privacy-language{margin-bottom:60px}.privacy-page .privacy-language{width:100%;overflow-x:auto}}
 
 /* ---------- 家庭邀请码 ---------- */
 .join-code-card{margin-top:18px;padding:15px;border:1px solid #d9e2d5;border-radius:16px;background:var(--sage-soft);display:grid;gap:10px;text-align:left}
