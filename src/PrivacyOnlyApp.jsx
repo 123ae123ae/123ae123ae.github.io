@@ -19,6 +19,9 @@ import {
   updateWebRecoveryPassword,
 } from "./authRecovery.js";
 import { pageForPath, SITE_ROUTES } from "./siteRoutes.js";
+import { studioAppsFor } from "./studioApps.js";
+import hamhamIcon from "./assets/hamham-icon.png";
+import pulumIcon from "./assets/pulum-icon.png";
 
 const recoverySupabase = createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
   auth: {
@@ -35,7 +38,8 @@ const initialLocale = () => policyLocale(navigator.language?.toLowerCase().start
 const siteCopy = {
   "zh-CN": {
     studioTagline: "用心制作简单、可靠的独立应用。",
-    hamhamSummary: "供家庭共同使用的宝宝辅食记录工具。",
+    terms: "使用条款",
+    appPage: "应用介绍",
     privacy: "隐私政策",
     support: "帮助与联系",
     supportTitle: "Ham Ham 帮助与联系",
@@ -46,7 +50,8 @@ const siteCopy = {
   },
   fr: {
     studioTagline: "Des applications indépendantes, simples et fiables, conçues avec soin.",
-    hamhamSummary: "Un journal de diversification alimentaire à partager en famille.",
+    terms: "Conditions d’utilisation",
+    appPage: "Présentation",
     privacy: "Politique de confidentialité",
     support: "Aide et contact",
     supportTitle: "Aide et contact Ham Ham",
@@ -57,7 +62,8 @@ const siteCopy = {
   },
   en: {
     studioTagline: "Simple, dependable independent apps, made with care.",
-    hamhamSummary: "A shared baby food journal for the whole family.",
+    terms: "Terms of use",
+    appPage: "About the app",
     privacy: "Privacy policy",
     support: "Help and contact",
     supportTitle: "Ham Ham help and contact",
@@ -82,6 +88,7 @@ function LanguagePicker({ locale, setLocale, label }) {
 
 function HomePage({ locale, setLocale }) {
   const copy = siteCopy[locale];
+  const icons = { hamham: hamhamIcon, pulum: pulumIcon };
   return (
     <main className="studio-page">
       <section className="studio-hero">
@@ -89,18 +96,20 @@ function HomePage({ locale, setLocale }) {
         <p className="studio-kicker">UZUM STUDIO</p>
         <h1>Uzum Studio</h1>
         <p className="studio-tagline">{copy.studioTagline}</p>
-        <article className="studio-app-card">
-          <div className="studio-app-mark" aria-hidden="true">H</div>
-          <div>
-            <p className="privacy-brand">Ham Ham</p>
-            <h2>Ham Ham</h2>
-            <p>{copy.hamhamSummary}</p>
-          </div>
-          <nav>
-            <a href={SITE_ROUTES.privacy}>{copy.privacy}</a>
-            <a href={SITE_ROUTES.support}>{copy.support}</a>
-          </nav>
-        </article>
+        <div className="studio-app-list">
+          {studioAppsFor(locale).map(app => (
+            <article className="studio-app-card" key={app.id} data-app={app.id}>
+              <img className="studio-app-mark" src={icons[app.id]} alt={`${app.name} icon`} width="88" height="88" />
+              <div className="studio-app-info">
+                <h2>{app.name}</h2>
+                <p>{app.summary}</p>
+              </div>
+              <nav aria-label={`${app.name} links`}>
+                {app.links.map(link => <a key={link.label} href={link.href}>{copy[link.label]}</a>)}
+              </nav>
+            </article>
+          ))}
+        </div>
       </section>
     </main>
   );
