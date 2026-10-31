@@ -7,7 +7,8 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "test": "node --test test/"
+    "test": "node --test test/",
+    "postbuild": "node scripts/copy-pulum.mjs"
   },
   "dependencies": {
     "@radix-ui/react-dialog": "1.1.14",
